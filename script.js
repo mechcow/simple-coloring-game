@@ -35,11 +35,23 @@ class ColoringGame {
         // Store loaded images
         this.loadedImages = {};
         
+        // Track current fairy selection
+        this.currentFairySelection = 'fairy-1';
+        
         this.themes = {
             fairy: {
                 name: 'Fairy',
-                imagePath: 'coloring-images/fairy.jpg',
-                description: 'Magical fairy with wings and sparkles'
+                images: {
+                    'fairy-1': {
+                        path: 'coloring-images/fairy-1.jpg',
+                        description: 'Magical fairy with wings and sparkles'
+                    },
+                    'fairy-2': {
+                        path: 'coloring-images/fairy-2.jpg',
+                        description: 'Another beautiful fairy design'
+                    }
+                },
+                description: 'Choose your fairy design'
             },
             mermaid: {
                 name: 'Mermaid',
@@ -70,7 +82,6 @@ class ColoringGame {
         this.setupEventListeners();
         this.renderColorPalette();
         this.loadTheme(this.currentTheme);
-        this.updateBlendedColor();
         this.updateUI();
         this.updateUndoRedoButtons(); // Initialize undo/redo button states
         
@@ -89,10 +100,8 @@ class ColoringGame {
             }
         });
 
-        // Color blender
-        document.getElementById('color1').addEventListener('input', () => this.updateBlendedColor());
-        document.getElementById('color2').addEventListener('input', () => this.updateBlendedColor());
-        document.getElementById('blendRatio').addEventListener('input', () => this.updateBlendedColor());
+        // Color picker
+        document.getElementById('customColor').addEventListener('input', () => this.updateCustomColor());
         document.getElementById('addToPalette').addEventListener('click', () => this.addColorToPalette());
 
         // Theme selection
@@ -124,26 +133,57 @@ class ColoringGame {
         document.getElementById('zoomOut').addEventListener('click', () => this.zoomOut());
         document.getElementById('resetZoom').addEventListener('click', () => this.resetZoom());
         
-        // Canvas events
-        this.canvas.addEventListener('mousedown', (e) => this.startDrawing(e));
-        this.canvas.addEventListener('mousemove', (e) => this.draw(e));
-        this.canvas.addEventListener('mouseup', () => this.stopDrawing());
-        this.canvas.addEventListener('mouseout', () => this.stopDrawing());
+        // Canvas events - consolidated to handle both drawing and panning
+        this.canvas.addEventListener('mousedown', (e) => {
+            // Handle panning first
+            if (e.button === 1 || (e.button === 0 && e.altKey)) { // Middle mouse or Alt+Left
+                this.startPanning(e);
+            } else if (e.button === 0) { // Left click only
+                this.startDrawing(e);
+            }
+        });
         
-        // Panning events
-        this.canvas.addEventListener('mousedown', (e) => this.startPanning(e));
-        this.canvas.addEventListener('mousemove', (e) => this.pan(e));
-        this.canvas.addEventListener('mouseup', () => this.stopPanning());
-        this.canvas.addEventListener('mouseleave', () => this.stopPanning());
+        this.canvas.addEventListener('mousemove', (e) => {
+            if (this.isPanning) {
+                this.pan(e);
+            } else if (this.isDrawing) {
+                this.draw(e);
+            }
+            this.showPanCursor(e);
+        });
         
-        // Mouse wheel zoom
+        this.canvas.addEventListener('mouseup', (e) => {
+            if (this.isPanning) {
+                this.stopPanning();
+            } else if (this.isDrawing) {
+                this.stopDrawing();
+            }
+        });
+        
+        this.canvas.addEventListener('mouseout', () => {
+            if (this.isPanning) {
+                this.stopPanning();
+            } else if (this.isDrawing) {
+                this.stopDrawing();
+            }
+        });
+        
+        this.canvas.addEventListener('mouseleave', () => {
+            if (this.isPanning) {
+                this.stopPanning();
+            } else if (this.isDrawing) {
+                this.stopDrawing();
+            }
+        });
+        
+        // Mouse wheel zoom centered on mouse position
         this.canvas.addEventListener('wheel', (e) => {
             e.preventDefault();
             const delta = e.deltaY > 0 ? -1 : 1;
             if (delta > 0) {
-                this.zoomIn();
+                this.zoomInAtPoint(e.clientX, e.clientY);
             } else {
-                this.zoomOut();
+                this.zoomOutAtPoint(e.clientX, e.clientY);
             }
         });
         
@@ -184,6 +224,7 @@ class ColoringGame {
     }
     
     loadTheme(theme) {
+        console.log('loadTheme called with theme:', theme);
         if (this.themes[theme]) {
             this.currentTheme = theme;
             
@@ -192,21 +233,115 @@ class ColoringGame {
                 btn.classList.toggle('active', btn.dataset.theme === theme);
             });
             
+            // Special handling for fairy theme - show selection UI
+            if (theme === 'fairy') {
+                console.log('Showing fairy selection UI');
+                this.showFairySelection();
+                return; // Don't load image yet, wait for fairy selection
+            }
+            
+            // Clear history when switching themes to prevent old modifications from appearing
+            this.clearHistory();
+            
             // Load image if not already loaded
             if (!this.loadedImages[theme]) {
+                console.log('Loading new image for theme:', theme);
                 const img = new Image();
                 img.onload = () => {
+                    console.log('Image loaded for theme:', theme);
                     this.loadedImages[theme] = img;
-                    this.redrawCanvas(true);
+                    this.redrawCanvas(true, true);
                     this.hideLoadingOverlay(); // Hide loading overlay when image loads
                 };
                 img.src = this.themes[theme].imagePath;
             } else {
-                this.redrawCanvas(true);
+                console.log('Using cached image for theme:', theme);
+                this.redrawCanvas(true, true);
                 this.hideLoadingOverlay(); // Hide loading overlay when using cached image
             }
             
             console.log(`Theme loaded: ${theme}`);
+        }
+    }
+    
+    showFairySelection() {
+        // Create fairy selection UI
+        const fairySelection = document.createElement('div');
+        fairySelection.className = 'fairy-selection';
+        fairySelection.innerHTML = `
+            <div class="fairy-selection-content">
+                <h3>Choose Your Fairy Design</h3>
+                <div class="fairy-options">
+                    <div class="fairy-option" data-fairy="fairy-1">
+                        <img src="coloring-images/fairy-1.jpg" alt="Fairy 1" width="150" height="150">
+                        <p>Fairy 1</p>
+                    </div>
+                    <div class="fairy-option" data-fairy="fairy-2">
+                        <img src="coloring-images/fairy-2.jpg" alt="Fairy 2" width="150" height="150">
+                        <p>Fairy 2</p>
+                    </div>
+                </div>
+                <button class="btn close-fairy-selection">Cancel</button>
+            </div>
+        `;
+        
+        // Add to canvas overlay
+        const overlay = document.querySelector('.canvas-overlay');
+        
+        if (!overlay) {
+            console.error('Canvas overlay not found!');
+            return;
+        }
+        
+        overlay.innerHTML = '';
+        overlay.appendChild(fairySelection);
+        overlay.style.display = 'block';
+        
+        // Add event listeners
+        fairySelection.querySelectorAll('.fairy-option').forEach(option => {
+            option.addEventListener('click', () => {
+                const fairyType = option.dataset.fairy;
+                this.currentFairySelection = fairyType;
+                this.loadFairyImage(fairyType);
+                overlay.style.display = 'none';
+            });
+        });
+        
+        fairySelection.querySelector('.close-fairy-selection').addEventListener('click', () => {
+            overlay.style.display = 'none';
+            // Reset to previous theme if available
+            if (this.history.length > 0) {
+                const lastState = this.history[this.historyIndex];
+                if (lastState && lastState.theme && lastState.theme !== 'fairy') {
+                    this.loadTheme(lastState.theme);
+                }
+            }
+        });
+    }
+    
+    loadFairyImage(fairyType) {
+        const fairyTheme = this.themes.fairy;
+        const fairyImage = fairyTheme.images[fairyType];
+        
+        if (fairyImage) {
+            // Clear history when selecting a fairy to prevent old modifications from appearing
+            this.clearHistory();
+            
+            // Load the specific fairy image
+            if (!this.loadedImages[fairyType]) {
+                const img = new Image();
+                img.onload = () => {
+                    this.loadedImages[fairyType] = img;
+                    this.redrawCanvas(true, true);
+                    this.hideLoadingOverlay();
+                };
+                img.src = fairyImage.path;
+            } else {
+                this.redrawCanvas(true, true);
+                this.hideLoadingOverlay();
+            }
+            
+            console.log(`Fairy image loaded: ${fairyType}`);
         }
     }
     
@@ -218,7 +353,22 @@ class ColoringGame {
     }
     
     drawThemeImage(theme, saveState = true) {
-        const img = this.loadedImages[theme];
+        console.log('drawThemeImage called with theme:', theme, 'saveState:', saveState);
+        let img;
+        let imgPath;
+        
+        if (theme === 'fairy') {
+            // For fairy theme, use the selected fairy image
+            img = this.loadedImages[this.currentFairySelection];
+            imgPath = this.themes.fairy.images[this.currentFairySelection].path;
+            console.log('Using fairy image:', this.currentFairySelection, 'path:', imgPath);
+        } else {
+            // For other themes, use the theme's image
+            img = this.loadedImages[theme];
+            imgPath = this.themes[theme].imagePath;
+            console.log('Using theme image:', theme, 'path:', imgPath);
+        }
+        
         if (img && img.complete) {
             const imgWidth = img.naturalWidth;
             const imgHeight = img.naturalHeight;
@@ -241,12 +391,15 @@ class ColoringGame {
             // Draw the image (zoom context is already applied by caller)
             this.ctx.drawImage(img, x, y, scaledWidth, scaledHeight);
             
-            console.log(`Image drawn: ${imgWidth}x${imgHeight} scaled to ${scaledWidth}x${scaledHeight} at (${x}, y)`);
+            console.log(`Image drawn: ${imgWidth}x${imgHeight} scaled to ${scaledWidth}x${scaledHeight} at (${x}, ${y})`);
             
             // Save the initial state for undo/redo only when called directly
             if (saveState) {
+                console.log('Saving canvas state after drawing theme image');
                 this.saveCanvasState();
             }
+        } else {
+            console.log('Image not ready:', img, 'complete:', img ? img.complete : 'no image');
         }
     }
     
@@ -261,11 +414,11 @@ class ColoringGame {
     }
     
     addColorToPalette() {
-        const blendedColor = this.getBlendedColor();
-        if (!this.colorPalette.includes(blendedColor)) {
-            this.colorPalette.push(blendedColor);
+        const customColor = document.getElementById('customColor').value;
+        if (!this.colorPalette.includes(customColor)) {
+            this.colorPalette.push(customColor);
             this.renderColorPalette();
-            console.log('Color added to palette:', blendedColor);
+            console.log('Color added to palette:', customColor);
         }
     }
 
@@ -282,34 +435,33 @@ class ColoringGame {
         }
     }
 
-    getBlendedColor() {
-        const color1 = document.getElementById('color1').value;
-        const color2 = document.getElementById('color2').value;
-        const ratio = parseInt(document.getElementById('blendRatio').value) / 100;
-        
-        return this.blendColors(color1, color2, ratio);
-    }
-
-    updateBlendedColor() {
-        const blendedColor = this.getBlendedColor();
-        const display = document.getElementById('blendedColorDisplay');
-        const blendValue = document.getElementById('blendValue');
-        
-        if (display) {
-            display.style.backgroundColor = blendedColor;
-        }
-        
-        if (blendValue) {
-            blendValue.textContent = document.getElementById('blendRatio').value + '%';
-        }
+    updateCustomColor() {
+        const customColor = document.getElementById('customColor').value;
+        // You can add visual feedback here if needed
+        console.log('Custom color selected:', customColor);
     }
     
     renderColorPalette() {
         const paletteContainer = document.querySelector('.color-palette');
         if (!paletteContainer) return;
         
-        // Clear existing palette
+        // Clear existing content but preserve the heading
+        const heading = paletteContainer.querySelector('h3');
         paletteContainer.innerHTML = '';
+        
+        // Restore the heading
+        if (heading) {
+            paletteContainer.appendChild(heading);
+        } else {
+            // Create heading if it doesn't exist
+            const newHeading = document.createElement('h3');
+            newHeading.textContent = 'Color Palette';
+            paletteContainer.appendChild(newHeading);
+        }
+        
+        // Create the basic-colors container
+        const basicColorsContainer = document.createElement('div');
+        basicColorsContainer.className = 'basic-colors';
         
         // Create color swatches for each color in the palette
         this.colorPalette.forEach((color, index) => {
@@ -333,8 +485,11 @@ class ColoringGame {
             }
             
             swatch.addEventListener('click', () => this.selectColor(color));
-            paletteContainer.appendChild(swatch);
+            basicColorsContainer.appendChild(swatch);
         });
+        
+        // Add the basic-colors container to the palette
+        paletteContainer.appendChild(basicColorsContainer);
         
         // Update selected color display
         this.updateSelectedColorDisplay();
@@ -355,7 +510,27 @@ class ColoringGame {
     
     saveCanvasState() {
         // Save current canvas state to history
-        const imageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+        // We need to get the image data from an untransformed canvas context
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = this.canvas.width;
+        tempCanvas.height = this.canvas.height;
+        const tempCtx = tempCanvas.getContext('2d');
+        
+        // Draw the current canvas state onto the temp canvas
+        tempCtx.drawImage(this.canvas, 0, 0);
+        
+        // Get the image data from the temp canvas (untransformed)
+        const imageData = tempCtx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+        
+        // Create a state object that includes canvas data and theme info
+        const state = {
+            imageData: imageData,
+            theme: this.currentTheme,
+            fairySelection: this.currentFairySelection,
+            zoom: this.zoomLevel,
+            panX: this.panX,
+            panY: this.panY
+        };
         
         // Remove any future history if we're not at the end
         if (this.historyIndex < this.history.length - 1) {
@@ -363,7 +538,7 @@ class ColoringGame {
         }
         
         // Add new state to history
-        this.history.push(imageData);
+        this.history.push(state);
         this.historyIndex++;
         
         // Limit history size
@@ -379,7 +554,22 @@ class ColoringGame {
     undo() {
         if (this.historyIndex > 0) {
             this.historyIndex--;
-            this.restoreCanvasState(this.history[this.historyIndex]);
+            const state = this.history[this.historyIndex];
+            this.restoreCanvasState(state);
+            
+            // Restore theme and fairy selection if they changed
+            if (state.theme !== this.currentTheme) {
+                this.currentTheme = state.theme;
+                // Update active theme button
+                document.querySelectorAll('.theme-btn').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.theme === state.theme);
+                });
+            }
+            
+            if (state.fairySelection !== this.currentFairySelection) {
+                this.currentFairySelection = state.fairySelection;
+            }
+            
             this.updateUndoRedoButtons();
             console.log(`Undo performed. History index: ${this.historyIndex}`);
         }
@@ -388,14 +578,50 @@ class ColoringGame {
     redo() {
         if (this.historyIndex < this.history.length - 1) {
             this.historyIndex++;
-            this.restoreCanvasState(this.history[this.historyIndex]);
+            const state = this.history[this.historyIndex];
+            this.restoreCanvasState(state);
+            
+            // Restore theme and fairy selection if they changed
+            if (state.theme !== this.currentTheme) {
+                this.currentTheme = state.theme;
+                // Update active theme button
+                document.querySelectorAll('.theme-btn').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.theme === state.theme);
+                });
+            }
+            
+            if (state.fairySelection !== this.currentFairySelection) {
+                this.currentFairySelection = state.fairySelection;
+            }
+            
             this.updateUndoRedoButtons();
             console.log(`Redo performed. History index: ${this.historyIndex}`);
         }
     }
     
-    restoreCanvasState(imageData) {
-        this.ctx.putImageData(imageData, 0, 0);
+    restoreCanvasState(state) {
+        // Store the current zoom and pan settings
+        const currentZoom = this.zoomLevel;
+        const currentPanX = this.panX;
+        const currentPanY = this.panY;
+        
+        // Temporarily reset zoom and pan to restore the state
+        this.zoomLevel = 1;
+        this.panX = 0;
+        this.panY = 0;
+        
+        // Restore the image data without transformations
+        this.ctx.putImageData(state.imageData, 0, 0);
+        
+        // Restore the zoom and pan settings
+        this.zoomLevel = currentZoom;
+        this.panX = currentPanX;
+        this.panY = currentPanY;
+        
+        // Redraw the canvas with the restored state and current transformations
+        this.redrawCanvas(false, false);
+        
+        console.log(`Canvas state restored. Zoom: ${this.zoomLevel}, Pan: (${this.panX}, ${this.panY})`);
     }
     
     updateUndoRedoButtons() {
@@ -411,6 +637,14 @@ class ColoringGame {
             redoBtn.disabled = this.historyIndex >= this.history.length - 1;
             redoBtn.classList.toggle('disabled', this.historyIndex >= this.history.length - 1);
         }
+    }
+    
+    clearHistory() {
+        // Clear the history when switching themes
+        this.history = [];
+        this.historyIndex = -1;
+        this.updateUndoRedoButtons();
+        console.log('History cleared for new theme');
     }
 
     // Zoom functionality
@@ -432,6 +666,51 @@ class ColoringGame {
         }
     }
 
+    zoomInAtPoint(screenX, screenY) {
+        console.log('zoomInAtPoint called at:', screenX, screenY, 'current zoom:', this.zoomLevel);
+        if (this.zoomLevel < this.maxZoom) {
+            const oldZoom = this.zoomLevel;
+            this.zoomLevel = Math.min(this.maxZoom, this.zoomLevel + this.zoomStep);
+            
+            // Adjust pan to keep the point under mouse cursor
+            this.adjustPanForZoom(screenX, screenY, oldZoom, this.zoomLevel);
+            this.updateZoom();
+        }
+    }
+
+    zoomOutAtPoint(screenX, screenY) {
+        console.log('zoomOutAtPoint called at:', screenX, screenY, 'current zoom:', this.zoomLevel);
+        if (this.zoomLevel > this.minZoom) {
+            const oldZoom = this.zoomLevel;
+            this.zoomLevel = Math.max(this.minZoom, this.zoomLevel - this.zoomStep);
+            
+            // Adjust pan to keep the point under mouse cursor
+            this.adjustPanForZoom(screenX, screenY, oldZoom, this.zoomLevel);
+            this.updateZoom();
+        }
+    }
+
+    adjustPanForZoom(screenX, screenY, oldZoom, newZoom) {
+        console.log('adjustPanForZoom called - screen:', screenX, screenY, 'oldZoom:', oldZoom, 'newZoom:', newZoom, 'old pan:', this.panX, this.panY);
+        
+        const rect = this.canvas.getBoundingClientRect();
+        const centerX = this.canvas.width / 2;
+        const centerY = this.canvas.height / 2;
+        
+        // Calculate the point in canvas coordinates before zoom
+        const canvasX = (screenX - rect.left - centerX - this.panX) / oldZoom + centerX;
+        const canvasY = (screenY - rect.top - centerY - this.panY) / oldZoom + centerY;
+        
+        // Calculate where this point should be after zoom
+        const newPanX = (canvasX - centerX) * newZoom - (screenX - rect.left - centerX);
+        const newPanY = (canvasY - centerY) * newZoom - (screenY - rect.top - centerY);
+        
+        console.log('Canvas coords:', canvasX, canvasY, 'new pan:', newPanX, newPanY);
+        
+        this.panX = newPanX;
+        this.panY = newPanY;
+    }
+
     resetZoom() {
         this.zoomLevel = 1;
         this.panX = 0;
@@ -445,55 +724,87 @@ class ColoringGame {
         const zoomLevelElement = document.getElementById('zoomLevel');
         if (zoomLevelElement) {
             zoomLevelElement.textContent = Math.round(this.zoomLevel * 100) + '%';
+            console.log('Updated zoom display to:', zoomLevelElement.textContent);
+        } else {
+            console.log('Zoom level element not found!');
         }
 
-        // Redraw the canvas with current zoom and pan
-        this.redrawCanvas(false);
+        // Redraw the canvas with current zoom and pan, but don't redraw the theme image
+        console.log('Calling redrawCanvas from updateZoom');
+        this.redrawCanvas(false, false);
     }
 
-    redrawCanvas(saveState = false) {
-        console.log('redrawCanvas called, saveState:', saveState, 'zoom:', this.zoomLevel, 'pan:', this.panX, this.panY);
+    redrawCanvas(saveState = false, redrawTheme = true) {
+        console.log('redrawCanvas called, saveState:', saveState, 'redrawTheme:', redrawTheme, 'zoom:', this.zoomLevel, 'pan:', this.panX, this.panY);
         // Clear canvas
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
-        // Apply zoom transformation
+        // Apply zoom transformation centered on canvas
         this.ctx.save();
-        this.ctx.translate(this.panX, this.panY);
-        this.ctx.scale(this.zoomLevel, this.zoomLevel);
         
-        // Redraw theme image
-        this.drawThemeImage(this.currentTheme, saveState);
+        // Calculate center point for zoom
+        const centerX = this.canvas.width / 2;
+        const centerY = this.canvas.height / 2;
+        
+        // Apply transformations in the correct order:
+        // 1. Move to center, 2. Scale, 3. Move back from center, 4. Apply pan
+        this.ctx.translate(centerX + this.panX, centerY + this.panY);
+        this.ctx.scale(this.zoomLevel, this.zoomLevel);
+        this.ctx.translate(-centerX, -centerY);
+        
+        // Only redraw theme image if requested (not needed when just redrawing user modifications)
+        if (redrawTheme) {
+            console.log('Redrawing theme image');
+            this.drawThemeImage(this.currentTheme, false);
+        }
         
         // Redraw any user drawings from history
         if (this.history.length > 0 && this.historyIndex >= 0) {
-            // We need to draw the history data without transformations
-            // Create a temporary canvas to draw the history data
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = this.canvas.width;
-            tempCanvas.height = this.canvas.height;
-            const tempCtx = tempCanvas.getContext('2d');
-            tempCtx.putImageData(this.history[this.historyIndex], 0, 0);
-            
-            // Draw the temp canvas onto the main canvas with transformations
-            this.ctx.drawImage(tempCanvas, 0, 0);
+            const historyState = this.history[this.historyIndex];
+            if (historyState && historyState.imageData) {
+                console.log('Redrawing history state, index:', this.historyIndex);
+                // Create a temporary canvas to draw the history data
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = this.canvas.width;
+                tempCanvas.height = this.canvas.height;
+                const tempCtx = tempCanvas.getContext('2d');
+                
+                // Draw the history image data onto the temp canvas
+                tempCtx.putImageData(historyState.imageData, 0, 0);
+                
+                // Draw the temp canvas onto the main canvas with transformations
+                this.ctx.drawImage(tempCanvas, 0, 0);
+            } else {
+                console.log('No valid history state found');
+            }
+        } else {
+            console.log('No history to redraw, length:', this.history.length, 'index:', this.historyIndex);
         }
         
         this.ctx.restore();
         
         // Save state only if requested
         if (saveState) {
+            console.log('Saving canvas state');
             this.saveCanvasState();
         }
     }
 
     // Pan functionality
     startPanning(e) {
-        if (e.button === 1 || (e.button === 0 && e.altKey)) { // Middle mouse or Alt+Left
-            this.isPanning = true;
-            this.lastPanX = e.clientX;
-            this.lastPanY = e.clientY;
-            this.canvas.style.cursor = 'grabbing';
-            e.preventDefault();
+        this.isPanning = true;
+        this.lastPanX = e.clientX;
+        this.lastPanY = e.clientY;
+        this.canvas.style.cursor = 'grabbing';
+        e.preventDefault();
+    }
+
+    // Show pan cursor when Alt is held down
+    showPanCursor(e) {
+        if (e.altKey) {
+            this.canvas.style.cursor = 'grab';
+        } else if (!this.isPanning) {
+            this.canvas.style.cursor = 'crosshair';
         }
     }
 
@@ -502,13 +813,19 @@ class ColoringGame {
             const deltaX = e.clientX - this.lastPanX;
             const deltaY = e.clientY - this.lastPanY;
             
-            this.panX += deltaX;
-            this.panY += deltaY;
-            
-            this.lastPanX = e.clientX;
-            this.lastPanY = e.clientY;
-            
-            this.updateZoom();
+            // Only update if there's meaningful movement (prevents excessive redraws)
+            if (Math.abs(deltaX) > 1 || Math.abs(deltaY) > 1) {
+                console.log('Panning - deltaX:', deltaX, 'deltaY:', deltaY, 'old pan:', this.panX, this.panY);
+                this.panX += deltaX;
+                this.panY += deltaY;
+                console.log('New pan position:', this.panX, this.panY);
+                
+                this.lastPanX = e.clientX;
+                this.lastPanY = e.clientY;
+                
+                // Update zoom display and redraw
+                this.updateZoom();
+            }
         }
     }
 
@@ -520,16 +837,24 @@ class ColoringGame {
     // Convert screen coordinates to canvas coordinates
     screenToCanvas(screenX, screenY) {
         const rect = this.canvas.getBoundingClientRect();
-        const x = (screenX - rect.left - this.panX) / this.zoomLevel;
-        const y = (screenY - rect.top - this.panY) / this.zoomLevel;
+        const centerX = this.canvas.width / 2;
+        const centerY = this.canvas.height / 2;
+        
+        // Convert screen coordinates to canvas coordinates considering centered zoom
+        const x = (screenX - rect.left - centerX - this.panX) / this.zoomLevel + centerX;
+        const y = (screenY - rect.top - centerY - this.panY) / this.zoomLevel + centerY;
         return { x, y };
     }
 
     // Convert canvas coordinates to screen coordinates
     canvasToScreen(canvasX, canvasY) {
         const rect = this.canvas.getBoundingClientRect();
-        const x = rect.left + this.panX + (canvasX * this.zoomLevel);
-        const y = rect.top + this.panY + (canvasY * this.zoomLevel);
+        const centerX = this.canvas.width / 2;
+        const centerY = this.canvas.height / 2;
+        
+        // Convert canvas coordinates to screen coordinates considering centered zoom
+        const x = (canvasX - centerX) * this.zoomLevel + centerX + this.panX + rect.left;
+        const y = (canvasY - centerY) * this.zoomLevel + centerY + this.panY + rect.top;
         return { x, y };
     }
     
@@ -551,26 +876,10 @@ class ColoringGame {
         }
     }
     
-    blendColors(color1, color2, ratio) {
-        const r1 = parseInt(color1.slice(1, 3), 16);
-        const g1 = parseInt(color1.slice(3, 5), 16);
-        const b1 = parseInt(color1.slice(5, 7), 16);
-        
-        const r2 = parseInt(color2.slice(1, 3), 16);
-        const g2 = parseInt(color2.slice(3, 5), 16);
-        const b2 = parseInt(color2.slice(5, 7), 16);
-        
-        const r = Math.round(r1 * (1 - ratio) + r2 * ratio);
-        const g = Math.round(g1 * (1 - ratio) + g2 * ratio);
-        const b = Math.round(b1 * (1 - ratio) + b2 * ratio);
-        
-        return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
-    }
-    
     startDrawing(e) {
         if (this.currentTool === 'fill') {
             const coords = this.screenToCanvas(e.clientX, e.clientY);
-            console.log('Fill tool activated at:', coords.x, coords.y, 'with color:', this.currentColor);
+            // console.log('Fill tool activated at:', coords.x, coords.y, 'with color:', this.currentColor);
             this.floodFill(coords.x, coords.y, this.currentColor);
             this.isDrawing = false; // Ensure fill tool doesn't leave drawing state active
             return; // Don't start drawing for fill tool
@@ -621,12 +930,28 @@ class ColoringGame {
     floodFill(startX, startY, fillColor) {
         console.log('Flood fill called with:', { startX, startY, fillColor });
         
-        // Get the canvas image data
-        const imageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+        // startX and startY are already canvas coordinates from screenToCanvas
+        const actualX = Math.floor(startX);
+        const actualY = Math.floor(startY);
+        
+        console.log('Using canvas coordinates:', { actualX, actualY });
+        
+        // We need to get the image data from an untransformed canvas context
+        // to work with the correct pixel coordinates
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = this.canvas.width;
+        tempCanvas.height = this.canvas.height;
+        const tempCtx = tempCanvas.getContext('2d');
+        
+        // Draw the current canvas state onto the temp canvas
+        tempCtx.drawImage(this.canvas, 0, 0);
+        
+        // Get the image data from the temp canvas (untransformed)
+        const imageData = tempCtx.getImageData(0, 0, this.canvas.width, this.canvas.height);
         const pixels = imageData.data;
         
         // Get the color at the starting point
-        const startPos = (Math.floor(startY) * this.canvas.width + Math.floor(startX)) * 4;
+        const startPos = (actualY * this.canvas.width + actualX) * 4;
         const startR = pixels[startPos];
         const startG = pixels[startPos + 1];
         const startB = pixels[startPos + 2];
@@ -647,24 +972,41 @@ class ColoringGame {
             return; // Already the same color
         }
         
+        // Define color tolerance for more robust filling
+        // This allows filling to get very close to lines without leaving gaps
+        const tolerance = 35; // Adjust this value if needed
+        
+        // Helper function to check if colors are similar enough to fill
+        const isSimilarColor = (r1, g1, b1, a1, r2, g2, b2, a2) => {
+            const colorDiff = Math.sqrt(
+                Math.pow(r1 - r2, 2) + 
+                Math.pow(g1 - g2, 2) + 
+                Math.pow(b1 - b2, 2)
+            );
+            return colorDiff <= tolerance;
+        };
+        
         // Use a more efficient flood fill algorithm with a queue
-        const queue = [[Math.floor(startX), Math.floor(startY)]];
+        const queue = [[actualX, actualY]];
         const width = this.canvas.width;
         const height = this.canvas.height;
+        const visited = new Set(); // Track visited pixels to avoid infinite loops
         
         let pixelsFilled = 0;
         
         while (queue.length > 0) {
             const [x, y] = queue.shift();
+            const key = `${x},${y}`;
             
-            // Check bounds
-            if (x < 0 || x >= width || y < 0 || y >= height) continue;
+            // Check bounds and if already visited
+            if (x < 0 || x >= width || y < 0 || y >= height || visited.has(key)) continue;
             
+            visited.add(key);
             const pos = (y * width + x) * 4;
             
-            // Check if this pixel matches the target color
-            if (pixels[pos] !== startR || pixels[pos + 1] !== startG || 
-                pixels[pos + 2] !== startB || pixels[pos + 3] !== startA) {
+            // Check if this pixel matches the target color (with tolerance)
+            if (!isSimilarColor(pixels[pos], pixels[pos + 1], pixels[pos + 2], pixels[pos + 3], 
+                               startR, startG, startB, startA)) {
                 continue;
             }
             
@@ -676,22 +1018,55 @@ class ColoringGame {
             
             pixelsFilled++;
             
-            // Add neighboring pixels to the queue
-            queue.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+            // Add neighboring pixels to the queue (8-directional for better coverage)
+            queue.push(
+                [x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1],
+                [x + 1, y + 1], [x + 1, y - 1], [x - 1, y + 1], [x - 1, y - 1]
+            );
         }
         
         console.log('Pixels filled:', pixelsFilled);
         
-        // Put the modified image data back on the canvas
-        this.ctx.putImageData(imageData, 0, 0);
-        
-        // Save canvas state after fill operation
-        this.saveCanvasState();
+        if (pixelsFilled > 0) {
+            console.log('Creating new history state with filled image data');
+            
+            // Create a new history state with the filled image data
+            const newState = {
+                imageData: imageData,
+                theme: this.currentTheme,
+                fairySelection: this.currentFairySelection,
+                zoom: this.zoomLevel,
+                panX: this.panX,
+                panY: this.panY
+            };
+            
+            // Add this state to history
+            this.historyIndex++;
+            this.history.splice(this.historyIndex, this.history.length); // Remove any future states
+            this.history.push(newState);
+            
+            // Limit history size
+            if (this.history.length > this.maxHistorySize) {
+                this.history.shift();
+                this.historyIndex--;
+            }
+            
+            console.log('History updated, current index:', this.historyIndex, 'history length:', this.history.length);
+            
+            // Redraw the canvas with the new state
+            this.redrawCanvas(false, false);
+            
+            // Update undo/redo buttons
+            this.updateUndoRedoButtons();
+        } else {
+            console.log('No pixels were filled');
+        }
     }
     
     clearCanvas() {
         // Clear the canvas and redraw the theme image with proper zoom/pan context
-        this.redrawCanvas(true);
+        this.clearHistory();
+        this.redrawCanvas(true, true);
     }
     
     saveImage() {

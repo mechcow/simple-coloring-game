@@ -11,7 +11,7 @@
     <div class="container">
         <header>
             <h1>🎨 River's Magical Colouring App</h1>
-            <p>Blend colours and create beautiful artwork!</p>
+            <p>Pick colours and create beautiful artwork!</p>
         </header>
 
         <div class="game-container">
@@ -53,38 +53,30 @@
                     </div>
                 </div>
 
-                <div class="color-blender">
-                    <h3>Color Blender</h3>
-                    <div class="blender-controls">
-                        <div class="color-input">
-                            <label for="color1">Color 1:</label>
-                            <input type="color" id="color1" value="#ff0000">
+                <div class="color-picker">
+                    <h3>Color Picker</h3>
+                    <div class="picker-controls">
+                        <div class="picker-input">
+                            <label for="customColor">Pick a Color:</label>
+                            <input type="color" id="customColor" value="#ff0000">
                         </div>
-                        <div class="color-input">
-                            <label for="color2">Color 2:</label>
-                            <input type="color" id="color2" value="#0000ff">
-                        </div>
-                        <div class="blend-slider">
-                            <label for="blendRatio">Blend Ratio:</label>
-                            <input type="range" id="blendRatio" min="0" max="100" value="50">
-                            <span id="blendValue">50%</span>
-                        </div>
-                        <div class="blended-color">
-                            <label>Blended Color:</label>
-                            <div id="blendedColorDisplay" class="color-display"></div>
-                            <button id="addToPalette" class="btn">Add to Palette</button>
-                        </div>
+                        <button id="addToPalette" class="btn">Add to Palette</button>
                     </div>
                 </div>
 
                 <div class="zoom-controls">
-                    <h3>Zoom</h3>
+                    <h3>Zoom & Pan</h3>
                     <div class="zoom-buttons">
                         <button id="zoomOut" class="btn">−</button>
                         <span id="zoomLevel">100%</span>
                         <button id="zoomIn" class="btn">+</button>
                     </div>
                     <button id="resetZoom" class="btn">Reset Zoom</button>
+                    <div class="zoom-instructions">
+                        <small>• Mouse wheel to zoom in/out</small><br>
+                        <small>• Alt + Click & drag to pan</small><br>
+                        <small>• Middle mouse to pan</small>
+                    </div>
                 </div>
 
                 <div class="tools">
