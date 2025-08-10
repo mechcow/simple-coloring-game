@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Magical Coloring Game</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎨 River's Magical Colouring App</h1>
+            <p>Blend colours and create beautiful artwork!</p>
+        </header>
+
+        <div class="game-container">
+            <div class="sidebar">
+                <div class="theme-selector">
+                    <h3>Choose Theme</h3>
+                    <div class="theme-buttons">
+                        <button class="theme-btn active" data-theme="fairy">🧚‍♀️ Fairy</button>
+                        <button class="theme-btn" data-theme="mermaid">🧜‍♀️ Mermaid</button>
+                        <button class="theme-btn" data-theme="princess">👑 Princess</button>
+                        <button class="theme-btn" data-theme="unicorn">🦄 Unicorn</button>
+                        <button class="theme-btn" data-theme="dessert">🍰 Dessert</button>
+                    </div>
+                </div>
+
+                <div class="color-palette">
+                    <h3>Color Palette</h3>
+                    <div class="basic-colors">
+                        <div class="color-swatch" data-color="#FF0000" style="background-color: #FF0000;"></div>
+                        <div class="color-swatch" data-color="#FF8000" style="background-color: #FF8000;"></div>
+                        <div class="color-swatch" data-color="#FFFF00" style="background-color: #FFFF00;"></div>
+                        <div class="color-swatch" data-color="#80FF00" style="background-color: #80FF00;"></div>
+                        <div class="color-swatch" data-color="#00FF00" style="background-color: #00FF00;"></div>
+                        <div class="color-swatch" data-color="#00FF80" style="background-color: #00FF80;"></div>
+                        <div class="color-swatch" data-color="#00FFFF" style="background-color: #00FFFF;"></div>
+                        <div class="color-swatch" data-color="#0080FF" style="background-color: #0080FF;"></div>
+                        <div class="color-swatch" data-color="#0000FF" style="background-color: #0000FF;"></div>
+                        <div class="color-swatch" data-color="#8000FF" style="background-color: #8000FF;"></div>
+                        <div class="color-swatch" data-color="#FF00FF" style="background-color: #FF00FF;"></div>
+                        <div class="color-swatch" data-color="#FF0080" style="background-color: #FF0080;"></div>
+                        <div class="color-swatch" data-color="#800000" style="background-color: #800000;"></div>
+                        <div class="color-swatch" data-color="#808000" style="background-color: #808000;"></div>
+                        <div class="color-swatch" data-color="#008000" style="background-color: #008000;"></div>
+                        <div class="color-swatch" data-color="#000080" style="background-color: #000080;"></div>
+                        <div class="color-swatch" data-color="#800080" style="background-color: #800080;"></div>
+                        <div class="color-swatch" data-color="#000000" style="background-color: #000000;"></div>
+                        <div class="color-swatch" data-color="#808080" style="background-color: #808080;"></div>
+                        <div class="color-swatch" data-color="#FFFFFF" style="background-color: #FFFFFF; border: 1px solid #ccc;"></div>
+                    </div>
+                </div>
+
+                <div class="color-blender">
+                    <h3>Color Blender</h3>
+                    <div class="blender-controls">
+                        <div class="color-input">
+                            <label for="color1">Color 1:</label>
+                            <input type="color" id="color1" value="#ff0000">
+                        </div>
+                        <div class="color-input">
+                            <label for="color2">Color 2:</label>
+                            <input type="color" id="color2" value="#0000ff">
+                        </div>
+                        <div class="blend-slider">
+                            <label for="blendRatio">Blend Ratio:</label>
+                            <input type="range" id="blendRatio" min="0" max="100" value="50">
+                            <span id="blendValue">50%</span>
+                        </div>
+                        <div class="blended-color">
+                            <label>Blended Color:</label>
+                            <div id="blendedColorDisplay" class="color-display"></div>
+                            <button id="addToPalette" class="btn">Add to Palette</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="zoom-controls">
+                    <h3>Zoom</h3>
+                    <div class="zoom-buttons">
+                        <button id="zoomOut" class="btn">−</button>
+                        <span id="zoomLevel">100%</span>
+                        <button id="zoomIn" class="btn">+</button>
+                    </div>
+                    <button id="resetZoom" class="btn">Reset Zoom</button>
+                </div>
+
+                <div class="tools">
+                    <h3>Tools</h3>
+                    <div class="tool-buttons">
+                        <button class="tool-btn active" data-tool="brush">🖌️ Brush</button>
+                        <button class="tool-btn" data-tool="eraser">🧽 Eraser</button>
+                        <button class="tool-btn" data-tool="fill">🪣 Fill</button>
+                    </div>
+                    <div class="brush-size">
+                        <label>Brush Size:</label>
+                        <input type="range" id="brushSize" min="1" max="50" value="10">
+                        <span id="sizeValue">10px</span>
+                    </div>
+                </div>
+
+                <div class="actions">
+                    <div class="action-buttons">
+                        <button id="clearCanvas" class="btn">Clear Canvas</button>
+                        <button id="undoBtn" class="btn">↶ Undo</button>
+                        <button id="redoBtn" class="btn">↷ Redo</button>
+                        <button id="saveImage" class="btn">Save Image</button>
+                        <button id="printImage" class="btn">Print Image</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="canvas-container">
+                <canvas id="coloringCanvas" width="800" height="600"></canvas>
+                <div class="canvas-overlay">
+                    <div class="loading">Loading theme...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html> 
