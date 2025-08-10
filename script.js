@@ -1,13 +1,101 @@
-class ColoringGame {
-    constructor() {
-        this.canvas = document.getElementById('coloringCanvas');
+class Paint {
+    constructor(canvas, game) {
+        this.canvas = canvas;
         this.ctx = this.canvas.getContext('2d');
+        this.game = game;
         this.currentColor = '#ff0000';
         this.currentTool = 'brush';
         this.isDrawing = false;
         this.lastX = 0;
         this.lastY = 0;
         this.brushSize = 5;
+    }
+
+    startDrawing(e) {
+        if (this.currentTool === 'fill') {
+            const coords = this.game.screenToCanvas(e.clientX, e.clientY);
+            // console.log('Fill tool activated at:', coords.x, coords.y, 'with color:', this.currentColor);
+            this.game.floodFill(coords.x, coords.y, this.currentColor);
+            this.isDrawing = false; // Ensure fill tool doesn't leave drawing state active
+            return; // Don't start drawing for fill tool
+        }
+
+        this.isDrawing = true;
+        const coords = this.game.screenToCanvas(e.clientX, e.clientY);
+        this.lastX = coords.x;
+        this.lastY = coords.y;
+    }
+
+    draw(e) {
+        if (!this.isDrawing) return;
+
+        const coords = this.game.screenToCanvas(e.clientX, e.clientY);
+        const currentX = coords.x;
+        const currentY = coords.y;
+
+        if (this.currentTool === 'eraser') {
+            this.ctx.globalCompositeOperation = 'destination-out';
+        } else {
+            this.ctx.globalCompositeOperation = 'source-over';
+        }
+
+        this.ctx.beginPath();
+        this.ctx.moveTo(this.lastX, this.lastY);
+        this.ctx.lineTo(currentX, currentY);
+        this.ctx.strokeStyle = this.currentColor;
+        this.ctx.lineWidth = this.brushSize;
+        this.ctx.lineCap = 'round';
+        this.ctx.lineJoin = 'round';
+        this.ctx.stroke();
+
+        this.lastX = currentX;
+        this.lastY = currentY;
+    }
+
+    stopDrawing() {
+        if (this.isDrawing) {
+            // Save canvas state after drawing operation
+            this.game.saveCanvasState();
+        }
+
+        this.isDrawing = false;
+        this.ctx.globalCompositeOperation = 'source-over';
+    }
+
+    selectColor(color) {
+        this.currentColor = color;
+
+        // Update selected color swatch
+        document.querySelectorAll('.color-swatch').forEach(swatch => {
+            swatch.classList.remove('selected');
+        });
+        document.querySelector(`[data-color="${color}"]`)?.classList.add('selected');
+    }
+
+    selectTool(tool) {
+        this.currentTool = tool;
+
+        // Update tool button states
+        document.querySelectorAll('.tool-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.tool === tool);
+        });
+
+        // Update cursor
+        if (tool === 'fill') {
+            this.canvas.style.cursor = 'crosshair';
+        } else if (tool === 'eraser') {
+            this.canvas.style.cursor = 'crosshair';
+        } else {
+            this.canvas.style.cursor = 'crosshair';
+        }
+    }
+}
+
+class ColoringGame {
+    constructor() {
+        this.canvas = document.getElementById('coloringCanvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.paint = new Paint(this.canvas, this);
         this.currentTheme = 'fairy';
         
         // Color palette
@@ -96,7 +184,7 @@ class ColoringGame {
         this.colorPalette.forEach((color, index) => {
             const swatch = document.querySelector(`[data-color="${color}"]`);
             if (swatch) {
-                swatch.addEventListener('click', () => this.selectColor(color));
+                swatch.addEventListener('click', () => this.paint.selectColor(color));
             }
         });
 
@@ -111,12 +199,12 @@ class ColoringGame {
 
         // Tools
         document.querySelectorAll('.tool-btn').forEach(btn => {
-            btn.addEventListener('click', () => this.selectTool(btn.dataset.tool));
+            btn.addEventListener('click', () => this.paint.selectTool(btn.dataset.tool));
         });
 
         // Brush size
         document.getElementById('brushSize').addEventListener('input', (e) => {
-            this.brushSize = parseInt(e.target.value);
+            this.paint.brushSize = parseInt(e.target.value);
         });
 
         // Actions
@@ -139,15 +227,15 @@ class ColoringGame {
             if (e.button === 1 || (e.button === 0 && e.altKey)) { // Middle mouse or Alt+Left
                 this.startPanning(e);
             } else if (e.button === 0) { // Left click only
-                this.startDrawing(e);
+                this.paint.startDrawing(e);
             }
         });
         
         this.canvas.addEventListener('mousemove', (e) => {
             if (this.isPanning) {
                 this.pan(e);
-            } else if (this.isDrawing) {
-                this.draw(e);
+            } else if (this.paint.isDrawing) {
+                this.paint.draw(e);
             }
             this.showPanCursor(e);
         });
@@ -155,24 +243,24 @@ class ColoringGame {
         this.canvas.addEventListener('mouseup', (e) => {
             if (this.isPanning) {
                 this.stopPanning();
-            } else if (this.isDrawing) {
-                this.stopDrawing();
+            } else if (this.paint.isDrawing) {
+                this.paint.stopDrawing();
             }
         });
         
         this.canvas.addEventListener('mouseout', () => {
             if (this.isPanning) {
                 this.stopPanning();
-            } else if (this.isDrawing) {
-                this.stopDrawing();
+            } else if (this.paint.isDrawing) {
+                this.paint.stopDrawing();
             }
         });
         
         this.canvas.addEventListener('mouseleave', () => {
             if (this.isPanning) {
                 this.stopPanning();
-            } else if (this.isDrawing) {
-                this.stopDrawing();
+            } else if (this.paint.isDrawing) {
+                this.paint.stopDrawing();
             }
         });
         
@@ -247,6 +335,7 @@ class ColoringGame {
             if (!this.loadedImages[theme]) {
                 console.log('Loading new image for theme:', theme);
                 const img = new Image();
+                img.crossOrigin = "Anonymous";
                 img.onload = () => {
                     console.log('Image loaded for theme:', theme);
                     this.loadedImages[theme] = img;
@@ -330,6 +419,7 @@ class ColoringGame {
             // Load the specific fairy image
             if (!this.loadedImages[fairyType]) {
                 const img = new Image();
+                img.crossOrigin = "Anonymous";
                 img.onload = () => {
                     this.loadedImages[fairyType] = img;
                     this.redrawCanvas(true, true);
@@ -403,16 +493,6 @@ class ColoringGame {
         }
     }
     
-    selectColor(color) {
-        this.currentColor = color;
-        
-        // Update selected color swatch
-        document.querySelectorAll('.color-swatch').forEach(swatch => {
-            swatch.classList.remove('selected');
-        });
-        document.querySelector(`[data-color="${color}"]`)?.classList.add('selected');
-    }
-    
     addColorToPalette() {
         const customColor = document.getElementById('customColor').value;
         if (!this.colorPalette.includes(customColor)) {
@@ -429,8 +509,8 @@ class ColoringGame {
             this.renderColorPalette();
             
             // If the removed color was selected, select the first available color
-            if (this.currentColor === color && this.colorPalette.length > 0) {
-                this.selectColor(this.colorPalette[0]);
+            if (this.paint.currentColor === color && this.colorPalette.length > 0) {
+                this.paint.selectColor(this.colorPalette[0]);
             }
         }
     }
@@ -502,7 +582,7 @@ class ColoringGame {
             selectedSwatch.classList.remove('selected');
         }
         
-        const newSelectedSwatch = document.querySelector(`[data-color="${this.currentColor}"]`);
+        const newSelectedSwatch = document.querySelector(`[data-color="${this.paint.currentColor}"]`);
         if (newSelectedSwatch) {
             newSelectedSwatch.classList.add('selected');
         }
@@ -858,75 +938,6 @@ class ColoringGame {
         return { x, y };
     }
     
-    selectTool(tool) {
-        this.currentTool = tool;
-        
-        // Update tool button states
-        document.querySelectorAll('.tool-btn').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.tool === tool);
-        });
-        
-        // Update cursor
-        if (tool === 'fill') {
-            this.canvas.style.cursor = 'crosshair';
-        } else if (tool === 'eraser') {
-            this.canvas.style.cursor = 'crosshair';
-        } else {
-            this.canvas.style.cursor = 'crosshair';
-        }
-    }
-    
-    startDrawing(e) {
-        if (this.currentTool === 'fill') {
-            const coords = this.screenToCanvas(e.clientX, e.clientY);
-            // console.log('Fill tool activated at:', coords.x, coords.y, 'with color:', this.currentColor);
-            this.floodFill(coords.x, coords.y, this.currentColor);
-            this.isDrawing = false; // Ensure fill tool doesn't leave drawing state active
-            return; // Don't start drawing for fill tool
-        }
-        
-        this.isDrawing = true;
-        const coords = this.screenToCanvas(e.clientX, e.clientY);
-        this.lastX = coords.x;
-        this.lastY = coords.y;
-    }
-    
-    draw(e) {
-        if (!this.isDrawing) return;
-        
-        const coords = this.screenToCanvas(e.clientX, e.clientY);
-        const currentX = coords.x;
-        const currentY = coords.y;
-        
-        if (this.currentTool === 'eraser') {
-            this.ctx.globalCompositeOperation = 'destination-out';
-        } else {
-            this.ctx.globalCompositeOperation = 'source-over';
-        }
-        
-        this.ctx.beginPath();
-        this.ctx.moveTo(this.lastX, this.lastY);
-        this.ctx.lineTo(currentX, currentY);
-        this.ctx.strokeStyle = this.currentColor;
-        this.ctx.lineWidth = this.brushSize;
-        this.ctx.lineCap = 'round';
-        this.ctx.lineJoin = 'round';
-        this.ctx.stroke();
-        
-        this.lastX = currentX;
-        this.lastY = currentY;
-    }
-    
-    stopDrawing() {
-        if (this.isDrawing) {
-            // Save canvas state after drawing operation
-            this.saveCanvasState();
-        }
-        
-        this.isDrawing = false;
-        this.ctx.globalCompositeOperation = 'source-over';
-    }
-    
     floodFill(startX, startY, fillColor) {
         console.log('Flood fill called with:', { startX, startY, fillColor });
         
@@ -1113,12 +1124,12 @@ class ColoringGame {
         // Update brush size display
         const brushSizeInput = document.getElementById('brushSize');
         if (brushSizeInput) {
-            brushSizeInput.value = this.brushSize;
+            brushSizeInput.value = this.paint.brushSize;
         }
         
         // Update selected tool
         document.querySelectorAll('.tool-btn').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.tool === this.currentTool);
+            btn.classList.toggle('active', btn.dataset.tool === this.paint.currentTool);
         });
         
         // Update selected theme
