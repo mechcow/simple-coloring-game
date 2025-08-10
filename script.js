@@ -335,6 +335,7 @@ class ColoringGame {
             if (!this.loadedImages[theme]) {
                 console.log('Loading new image for theme:', theme);
                 const img = new Image();
+                img.crossOrigin = "Anonymous";
                 img.onload = () => {
                     console.log('Image loaded for theme:', theme);
                     this.loadedImages[theme] = img;
@@ -418,6 +419,7 @@ class ColoringGame {
             // Load the specific fairy image
             if (!this.loadedImages[fairyType]) {
                 const img = new Image();
+                img.crossOrigin = "Anonymous";
                 img.onload = () => {
                     this.loadedImages[fairyType] = img;
                     this.redrawCanvas(true, true);
