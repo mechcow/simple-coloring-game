@@ -286,8 +286,9 @@ class ColoringGame {
             // Scale the drawing context so everything draws at the correct size
             this.ctx.scale(devicePixelRatio, devicePixelRatio);
             
-            // The canvas's CSS size is now controlled by the stylesheet.
-            // We no longer set it here, allowing for responsive behavior.
+            // Set the CSS size back to the original size
+            this.canvas.style.width = cssWidth + 'px';
+            this.canvas.style.height = cssHeight + 'px';
             
             console.log('Canvas optimized for high-DPI:', {
                 cssWidth,
@@ -1349,146 +1350,98 @@ class ColoringGame {
     
     floodFill(startX, startY, fillColor) {
         console.log('Flood fill called with:', { startX, startY, fillColor });
-        console.log('Current paint color:', this.paint.currentColor);
-        
-        // startX and startY are already canvas coordinates from screenToCanvas
+
         const actualX = Math.floor(startX);
         const actualY = Math.floor(startY);
-        
-        console.log('Using canvas coordinates:', { actualX, actualY });
-        console.log('Canvas dimensions:', { width: this.canvas.width, height: this.canvas.height });
-        
-        // Check bounds
+
         if (actualX < 0 || actualX >= this.canvas.width || actualY < 0 || actualY >= this.canvas.height) {
-            console.error('Coordinates out of bounds:', { actualX, actualY, width: this.canvas.width, height: this.canvas.height });
+            console.error('Coordinates out of bounds');
             return;
         }
-        
-        // Create a temporary canvas to work with untransformed coordinates
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = this.canvas.width;
-        tempCanvas.height = this.canvas.height;
-        const tempCtx = tempCanvas.getContext('2d');
-        
-        // Draw the current canvas state onto the temp canvas
-        // This gives us the untransformed image data to work with
-        tempCtx.drawImage(this.canvas, 0, 0);
-        
-        // Get the image data from the temp canvas (untransformed)
-        const imageData = tempCtx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+
+        // To prevent issues with zoom/pan, we must operate on the untransformed image data
+        // from the last history state, not the currently displayed (and transformed) canvas.
+        const lastState = this.history[this.historyIndex];
+        if (!lastState || !lastState.imageData) {
+            console.error('Cannot fill: No valid history state found.');
+            return;
+        }
+
+        // Create a new ImageData object from the last state to avoid modifying history directly.
+        const imageData = new ImageData(
+            new Uint8ClampedArray(lastState.imageData.data),
+            lastState.imageData.width,
+            lastState.imageData.height
+        );
         const pixels = imageData.data;
-        
-        // Get the color at the starting point
-        const startPos = (actualY * this.canvas.width + actualX) * 4;
+
+        const startPos = (actualY * imageData.width + actualX) * 4;
         const startR = pixels[startPos];
         const startG = pixels[startPos + 1];
         const startB = pixels[startPos + 2];
-        const startA = pixels[startPos + 3];
-        
-        console.log('Starting pixel color:', { startR, startG, startB, startA });
-        console.log('Starting pixel position in array:', startPos);
-        
-        // Parse the fill color
+
         const fillR = parseInt(fillColor.slice(1, 3), 16);
         const fillG = parseInt(fillColor.slice(3, 5), 16);
         const fillB = parseInt(fillColor.slice(5, 7), 16);
-        
-        console.log('Fill color:', { fillR, fillG, fillB });
-        
-        // Don't fill if we're trying to fill with the same color
+
         if (startR === fillR && startG === fillG && startB === fillB) {
             console.log('Same color, no fill needed');
-            return; // Already the same color
+            return;
         }
-        
-        // Define color tolerance for more robust filling
-        // This allows filling to get very close to lines without leaving gaps
-        const tolerance = 35; // Adjust this value if needed
-        
-        // Helper function to check if colors are similar enough to fill
-        const isSimilarColor = (r1, g1, b1, a1, r2, g2, b2, a2) => {
-            const colorDiff = Math.sqrt(
-                Math.pow(r1 - r2, 2) + 
-                Math.pow(g1 - g2, 2) + 
-                Math.pow(b1 - b2, 2)
-            );
+
+        const tolerance = 35;
+        const isSimilarColor = (r1, g1, b1, r2, g2, b2) => {
+            const colorDiff = Math.sqrt(Math.pow(r1 - r2, 2) + Math.pow(g1 - g2, 2) + Math.pow(b1 - b2, 2));
             return colorDiff <= tolerance;
         };
-        
-        // Use a more efficient flood fill algorithm with a queue
+
         const queue = [[actualX, actualY]];
-        const width = this.canvas.width;
-        const height = this.canvas.height;
-        const visited = new Set(); // Track visited pixels to avoid infinite loops
-        
+        const width = imageData.width;
+        const height = imageData.height;
+        const visited = new Set();
         let pixelsFilled = 0;
-        
+
         while (queue.length > 0) {
             const [x, y] = queue.shift();
             const key = `${x},${y}`;
-            
-            // Check bounds and if already visited
+
             if (x < 0 || x >= width || y < 0 || y >= height || visited.has(key)) continue;
             
             visited.add(key);
             const pos = (y * width + x) * 4;
-            
-            // Check if this pixel matches the target color (with tolerance)
-            if (!isSimilarColor(pixels[pos], pixels[pos + 1], pixels[pos + 2], pixels[pos + 3], 
-                               startR, startG, startB, startA)) {
+
+            if (!isSimilarColor(pixels[pos], pixels[pos + 1], pixels[pos + 2], startR, startG, startB)) {
                 continue;
             }
-            
-            // Fill this pixel
+
             pixels[pos] = fillR;
             pixels[pos + 1] = fillG;
             pixels[pos + 2] = fillB;
-            pixels[pos + 3] = 255; // Full opacity
-            
+            pixels[pos + 3] = 255;
             pixelsFilled++;
-            
-            // Add neighboring pixels to the queue (8-directional for better coverage)
-            queue.push(
-                [x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1],
-                [x + 1, y + 1], [x + 1, y - 1], [x - 1, y + 1], [x - 1, y - 1]
-            );
+
+            queue.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
         }
-        
-        console.log('Pixels filled:', pixelsFilled);
-        
+
         if (pixelsFilled > 0) {
-            console.log('Creating new history state with filled image data');
-            
-            // Put the modified image data back onto the temp canvas
-            tempCtx.putImageData(imageData, 0, 0);
-            
-            // Create a new history state with the filled image data
             const newState = {
-                imageData: tempCtx.getImageData(0, 0, this.canvas.width, this.canvas.height),
+                imageData: imageData, // Use the modified, untransformed image data
                 theme: this.currentTheme,
                 fairySelection: this.currentFairySelection,
                 zoom: this.zoomLevel,
                 panX: this.panX,
                 panY: this.panY
             };
-            
-            // Add this state to history
+
             this.historyIndex++;
-            this.history.splice(this.historyIndex, this.history.length); // Remove any future states
-            this.history.push(newState);
-            
-            // Limit history size
+            this.history.splice(this.historyIndex, this.history.length, newState);
+
             if (this.history.length > this.maxHistorySize) {
                 this.history.shift();
                 this.historyIndex--;
             }
-            
-            console.log('History updated, current index:', this.historyIndex, 'history length:', this.history.length);
-            
-            // Redraw the canvas with the new state, but ensure theme is redrawn
+
             this.redrawCanvas(false, true);
-            
-            // Update undo/redo buttons
             this.updateUndoRedoButtons();
         } else {
             console.log('No pixels were filled');
