@@ -12,8 +12,9 @@ class Paint {
     }
 
     startDrawing(e) {
+        const eventCoords = this.game.getEventCoordinates(e);
         if (this.currentTool === 'fill') {
-            const coords = this.game.screenToCanvas(e.clientX, e.clientY);
+            const coords = this.game.screenToCanvas(eventCoords.clientX, eventCoords.clientY);
             // console.log('Fill tool activated at:', coords.x, coords.y, 'with color:', this.currentColor);
             this.game.floodFill(coords.x, coords.y, this.currentColor);
             this.isDrawing = false; // Ensure fill tool doesn't leave drawing state active
@@ -21,7 +22,7 @@ class Paint {
         }
 
         this.isDrawing = true;
-        const coords = this.game.screenToCanvas(e.clientX, e.clientY);
+        const coords = this.game.screenToCanvas(eventCoords.clientX, eventCoords.clientY);
         this.lastX = coords.x;
         this.lastY = coords.y;
     }
@@ -29,7 +30,8 @@ class Paint {
     draw(e) {
         if (!this.isDrawing) return;
 
-        const coords = this.game.screenToCanvas(e.clientX, e.clientY);
+        const eventCoords = this.game.getEventCoordinates(e);
+        const coords = this.game.screenToCanvas(eventCoords.clientX, eventCoords.clientY);
         const currentX = coords.x;
         const currentY = coords.y;
 
@@ -166,6 +168,13 @@ class ColoringGame {
         this.init();
     }
     
+    getEventCoordinates(e) {
+        if (e.touches && e.touches.length) {
+            return { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
+        }
+        return { clientX: e.clientX, clientY: e.clientY };
+    }
+
     init() {
         this.setupEventListeners();
         this.renderColorPalette();
@@ -185,6 +194,10 @@ class ColoringGame {
             const swatch = document.querySelector(`[data-color="${color}"]`);
             if (swatch) {
                 swatch.addEventListener('click', () => this.paint.selectColor(color));
+                swatch.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    this.paint.selectColor(color);
+                });
             }
         });
 
@@ -200,6 +213,10 @@ class ColoringGame {
         // Tools
         document.querySelectorAll('.tool-btn').forEach(btn => {
             btn.addEventListener('click', () => this.paint.selectTool(btn.dataset.tool));
+            btn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                this.paint.selectTool(btn.dataset.tool);
+            });
         });
 
         // Brush size
@@ -260,6 +277,33 @@ class ColoringGame {
             if (this.isPanning) {
                 this.stopPanning();
             } else if (this.paint.isDrawing) {
+                this.paint.stopDrawing();
+            }
+        });
+
+        // Touch events
+        this.canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            this.paint.startDrawing(e);
+        }, { passive: false });
+
+        this.canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (this.paint.isDrawing) {
+                this.paint.draw(e);
+            }
+        }, { passive: false });
+
+        this.canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            if (this.paint.isDrawing) {
+                this.paint.stopDrawing();
+            }
+        });
+
+        this.canvas.addEventListener('touchcancel', (e) => {
+            e.preventDefault();
+            if (this.paint.isDrawing) {
                 this.paint.stopDrawing();
             }
         });
@@ -564,7 +608,11 @@ class ColoringGame {
                 swatch.appendChild(removeBtn);
             }
             
-            swatch.addEventListener('click', () => this.selectColor(color));
+            swatch.addEventListener('click', () => this.paint.selectColor(color));
+            swatch.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                this.paint.selectColor(color);
+            });
             basicColorsContainer.appendChild(swatch);
         });
         
@@ -873,8 +921,9 @@ class ColoringGame {
     // Pan functionality
     startPanning(e) {
         this.isPanning = true;
-        this.lastPanX = e.clientX;
-        this.lastPanY = e.clientY;
+        const eventCoords = this.getEventCoordinates(e);
+        this.lastPanX = eventCoords.clientX;
+        this.lastPanY = eventCoords.clientY;
         this.canvas.style.cursor = 'grabbing';
         e.preventDefault();
     }
@@ -890,8 +939,9 @@ class ColoringGame {
 
     pan(e) {
         if (this.isPanning) {
-            const deltaX = e.clientX - this.lastPanX;
-            const deltaY = e.clientY - this.lastPanY;
+            const eventCoords = this.getEventCoordinates(e);
+            const deltaX = eventCoords.clientX - this.lastPanX;
+            const deltaY = eventCoords.clientY - this.lastPanY;
             
             // Only update if there's meaningful movement (prevents excessive redraws)
             if (Math.abs(deltaX) > 1 || Math.abs(deltaY) > 1) {
@@ -900,8 +950,8 @@ class ColoringGame {
                 this.panY += deltaY;
                 console.log('New pan position:', this.panX, this.panY);
                 
-                this.lastPanX = e.clientX;
-                this.lastPanY = e.clientY;
+                this.lastPanX = eventCoords.clientX;
+                this.lastPanY = eventCoords.clientY;
                 
                 // Update zoom display and redraw
                 this.updateZoom();
