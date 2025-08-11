@@ -3,7 +3,7 @@ class Paint {
         this.canvas = canvas;
         this.ctx = this.canvas.getContext('2d');
         this.game = game;
-        this.currentColor = '#ff0000';
+        this.currentColor = '#FF0000';
         this.currentTool = 'brush';
         this.isDrawing = false;
         this.lastX = 0;
@@ -14,9 +14,12 @@ class Paint {
     startDrawing(e) {
         const eventCoords = this.game.getEventCoordinates(e);
         if (this.currentTool === 'fill') {
-            const coords = this.game.screenToCanvas(eventCoords.clientX, eventCoords.clientY);
-            // console.log('Fill tool activated at:', coords.x, coords.y, 'with color:', this.currentColor);
-            this.game.floodFill(coords.x, coords.y, this.currentColor);
+            // Small delay for mobile devices to ensure proper touch handling
+            setTimeout(() => {
+                const coords = this.game.screenToCanvas(eventCoords.clientX, eventCoords.clientY);
+                console.log('Fill tool activated at:', coords.x, coords.y, 'with color:', this.currentColor);
+                this.game.floodFill(coords.x, coords.y, this.currentColor);
+            }, 50);
             this.isDrawing = false; // Ensure fill tool doesn't leave drawing state active
             return; // Don't start drawing for fill tool
         }
@@ -41,6 +44,8 @@ class Paint {
             this.ctx.globalCompositeOperation = 'source-over';
         }
 
+        console.log('Drawing with color:', this.currentColor, 'tool:', this.currentTool);
+        
         this.ctx.beginPath();
         this.ctx.moveTo(this.lastX, this.lastY);
         this.ctx.lineTo(currentX, currentY);
@@ -65,13 +70,22 @@ class Paint {
     }
 
     selectColor(color) {
+        console.log('selectColor called with color:', color);
         this.currentColor = color;
 
         // Update selected color swatch
         document.querySelectorAll('.color-swatch').forEach(swatch => {
             swatch.classList.remove('selected');
         });
-        document.querySelector(`[data-color="${color}"]`)?.classList.add('selected');
+        const selectedSwatch = document.querySelector(`[data-color="${color}"]`);
+        if (selectedSwatch) {
+            selectedSwatch.classList.add('selected');
+            console.log('Selected swatch updated:', selectedSwatch);
+        } else {
+            console.warn('Could not find swatch for color:', color);
+        }
+        
+        console.log('Current color set to:', this.currentColor);
     }
 
     selectTool(tool) {
@@ -102,8 +116,10 @@ class ColoringGame {
         
         // Color palette
         this.colorPalette = [
-            '#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', 
-            '#00ffff', '#ff8800', '#8800ff', '#00ff88', '#ff0088'
+            '#FF0000', '#FF8000', '#FFFF00', '#80FF00', '#00FF00', 
+            '#00FF80', '#00FFFF', '#0080FF', '#0000FF', '#8000FF',
+            '#FF00FF', '#FF0080', '#800000', '#808000', '#008000',
+            '#000080', '#800080', '#000000', '#808080', '#FFFFFF'
         ];
         
         // Undo/Redo history
@@ -169,10 +185,15 @@ class ColoringGame {
     }
     
     getEventCoordinates(e) {
+        let coords;
         if (e.touches && e.touches.length) {
-            return { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
+            coords = { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
+            console.log('Touch event coordinates:', coords, 'event type:', e.type);
+        } else {
+            coords = { clientX: e.clientX, clientY: e.clientY };
+            console.log('Mouse event coordinates:', coords, 'event type:', e.type);
         }
-        return { clientX: e.clientX, clientY: e.clientY };
+        return coords;
     }
 
     init() {
@@ -182,6 +203,11 @@ class ColoringGame {
         this.updateUI();
         this.updateUndoRedoButtons(); // Initialize undo/redo button states
         
+        // For fairy theme, automatically load the first fairy image
+        if (this.currentTheme === 'fairy') {
+            this.loadFairyImage(this.currentFairySelection);
+        }
+        
         // Fallback: hide loading overlay after 5 seconds if it's still visible
         setTimeout(() => {
             this.hideLoadingOverlay();
@@ -189,31 +215,52 @@ class ColoringGame {
     }
     
     setupEventListeners() {
-        // Color palette
-        this.colorPalette.forEach((color, index) => {
-            const swatch = document.querySelector(`[data-color="${color}"]`);
-            if (swatch) {
-                swatch.addEventListener('click', () => this.paint.selectColor(color));
-                swatch.addEventListener('touchstart', (e) => {
-                    e.preventDefault();
-                    this.paint.selectColor(color);
-                });
-            }
-        });
+        // Color palette event listeners are now set up in renderColorPalette()
 
         // Color picker
         document.getElementById('customColor').addEventListener('input', () => this.updateCustomColor());
-        document.getElementById('addToPalette').addEventListener('click', () => this.addColorToPalette());
+        document.getElementById('customColor').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+        }, { passive: false });
+        document.getElementById('addToPalette').addEventListener('click', (e) => {
+            e.preventDefault();
+            this.addColorToPalette();
+        });
+        document.getElementById('addToPalette').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            this.addColorToPalette();
+        }, { passive: false });
+        
+        // Set initial custom color value to match first palette color
+        document.getElementById('customColor').value = this.colorPalette[0];
 
         // Theme selection
         document.querySelectorAll('.theme-btn').forEach(btn => {
-            btn.addEventListener('click', () => this.loadTheme(btn.dataset.theme));
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.loadTheme(btn.dataset.theme);
+            });
+            btn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                this.loadTheme(btn.dataset.theme);
+            }, { passive: false });
+            btn.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                this.loadTheme(btn.dataset.theme);
+            });
         });
 
         // Tools
         document.querySelectorAll('.tool-btn').forEach(btn => {
-            btn.addEventListener('click', () => this.paint.selectTool(btn.dataset.tool));
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.paint.selectTool(btn.dataset.tool);
+            });
             btn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                this.paint.selectTool(btn.dataset.tool);
+            }, { passive: false });
+            btn.addEventListener('pointerdown', (e) => {
                 e.preventDefault();
                 this.paint.selectTool(btn.dataset.tool);
             });
@@ -221,22 +268,87 @@ class ColoringGame {
 
         // Brush size
         document.getElementById('brushSize').addEventListener('input', (e) => {
+            e.preventDefault();
             this.paint.brushSize = parseInt(e.target.value);
+            // Update the brush size display
+            const sizeValue = document.getElementById('sizeValue');
+            if (sizeValue) {
+                sizeValue.textContent = this.paint.brushSize + 'px';
+            }
         });
+        document.getElementById('brushSize').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+        }, { passive: false });
 
         // Actions
-        document.getElementById('clearCanvas').addEventListener('click', () => this.clearCanvas());
-        document.getElementById('saveImage').addEventListener('click', () => this.saveImage());
-        document.getElementById('printImage').addEventListener('click', () => this.printImage());
+        document.getElementById('clearCanvas').addEventListener('click', (e) => {
+            e.preventDefault();
+            this.clearCanvas();
+        });
+        document.getElementById('clearCanvas').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            this.clearCanvas();
+        }, { passive: false });
+        document.getElementById('saveImage').addEventListener('click', (e) => {
+            e.preventDefault();
+            this.saveImage();
+        });
+        document.getElementById('saveImage').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            this.saveImage();
+        }, { passive: false });
+        document.getElementById('printImage').addEventListener('click', (e) => {
+            e.preventDefault();
+            this.printImage();
+        });
+        document.getElementById('printImage').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            this.printImage();
+        }, { passive: false });
         
         // Undo/Redo
-        document.getElementById('undoBtn').addEventListener('click', () => this.undo());
-        document.getElementById('redoBtn').addEventListener('click', () => this.redo());
+        document.getElementById('undoBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            this.undo();
+        });
+        document.getElementById('undoBtn').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            this.undo();
+        }, { passive: false });
+        document.getElementById('redoBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            this.redo();
+        });
+        document.getElementById('redoBtn').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            this.redo();
+        }, { passive: false });
         
         // Zoom controls
-        document.getElementById('zoomIn').addEventListener('click', () => this.zoomIn());
-        document.getElementById('zoomOut').addEventListener('click', () => this.zoomOut());
-        document.getElementById('resetZoom').addEventListener('click', () => this.resetZoom());
+        document.getElementById('zoomIn').addEventListener('click', (e) => {
+            e.preventDefault();
+            this.zoomIn();
+        });
+        document.getElementById('zoomIn').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            this.zoomIn();
+        }, { passive: false });
+        document.getElementById('zoomOut').addEventListener('click', (e) => {
+            e.preventDefault();
+            this.zoomOut();
+        });
+        document.getElementById('zoomOut').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            this.zoomOut();
+        }, { passive: false });
+        document.getElementById('resetZoom').addEventListener('click', (e) => {
+            e.preventDefault();
+            this.resetZoom();
+        });
+        document.getElementById('resetZoom').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            this.resetZoom();
+        }, { passive: false });
         
         // Canvas events - consolidated to handle both drawing and panning
         this.canvas.addEventListener('mousedown', (e) => {
@@ -281,32 +393,44 @@ class ColoringGame {
             }
         });
 
-        // Touch events
+        // Touch events with improved mobile support
         this.canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
-            this.paint.startDrawing(e);
+            e.stopPropagation();
+            
+            // Handle single touch for drawing/filling
+            if (e.touches.length === 1) {
+                this.paint.startDrawing(e);
+            }
         }, { passive: false });
 
         this.canvas.addEventListener('touchmove', (e) => {
             e.preventDefault();
-            if (this.paint.isDrawing) {
+            e.stopPropagation();
+            
+            // Only handle drawing if it's a single touch and we're drawing
+            if (e.touches.length === 1 && this.paint.isDrawing) {
                 this.paint.draw(e);
             }
         }, { passive: false });
 
         this.canvas.addEventListener('touchend', (e) => {
             e.preventDefault();
+            e.stopPropagation();
+            
             if (this.paint.isDrawing) {
                 this.paint.stopDrawing();
             }
-        });
+        }, { passive: false });
 
         this.canvas.addEventListener('touchcancel', (e) => {
             e.preventDefault();
+            e.stopPropagation();
+            
             if (this.paint.isDrawing) {
                 this.paint.stopDrawing();
             }
-        });
+        }, { passive: false });
         
         // Mouse wheel zoom centered on mouse position
         this.canvas.addEventListener('wheel', (e) => {
@@ -432,15 +556,24 @@ class ColoringGame {
         
         // Add event listeners
         fairySelection.querySelectorAll('.fairy-option').forEach(option => {
-            option.addEventListener('click', () => {
+            option.addEventListener('click', (e) => {
+                e.preventDefault();
                 const fairyType = option.dataset.fairy;
                 this.currentFairySelection = fairyType;
                 this.loadFairyImage(fairyType);
                 overlay.style.display = 'none';
             });
+            option.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                const fairyType = option.dataset.fairy;
+                this.currentFairySelection = fairyType;
+                this.loadFairyImage(fairyType);
+                overlay.style.display = 'none';
+            }, { passive: false });
         });
         
-        fairySelection.querySelector('.close-fairy-selection').addEventListener('click', () => {
+        fairySelection.querySelector('.close-fairy-selection').addEventListener('click', (e) => {
+            e.preventDefault();
             overlay.style.display = 'none';
             // Reset to previous theme if available
             if (this.history.length > 0) {
@@ -450,6 +583,17 @@ class ColoringGame {
                 }
             }
         });
+        fairySelection.querySelector('.close-fairy-selection').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            overlay.style.display = 'none';
+            // Reset to previous theme if available
+            if (this.history.length > 0) {
+                const lastState = this.history[this.historyIndex];
+                if (lastState && lastState.theme && lastState.theme !== 'fairy') {
+                    this.loadTheme(lastState.theme);
+                }
+            }
+        }, { passive: false });
     }
     
     loadFairyImage(fairyType) {
@@ -596,7 +740,7 @@ class ColoringGame {
             swatch.title = color;
             
             // Add remove button for non-default colors
-            if (index >= 10) { // First 10 are default colors
+            if (index >= 20) { // First 20 are default colors
                 const removeBtn = document.createElement('button');
                 removeBtn.className = 'remove-color';
                 removeBtn.innerHTML = '×';
@@ -608,11 +752,27 @@ class ColoringGame {
                 swatch.appendChild(removeBtn);
             }
             
-            swatch.addEventListener('click', () => this.paint.selectColor(color));
-            swatch.addEventListener('touchstart', (e) => {
+            // Add both click and touch events for better mobile support
+            swatch.addEventListener('click', (e) => {
                 e.preventDefault();
+                console.log('Color swatch clicked:', color);
                 this.paint.selectColor(color);
             });
+            
+            // Touch events for mobile
+            swatch.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                console.log('Color swatch touched:', color);
+                this.paint.selectColor(color);
+            }, { passive: false });
+            
+            // Add pointer events for better cross-device support
+            swatch.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                console.log('Color swatch pointer down:', color);
+                this.paint.selectColor(color);
+            });
+            
             basicColorsContainer.appendChild(swatch);
         });
         
@@ -822,16 +982,14 @@ class ColoringGame {
         console.log('adjustPanForZoom called - screen:', screenX, screenY, 'oldZoom:', oldZoom, 'newZoom:', newZoom, 'old pan:', this.panX, this.panY);
         
         const rect = this.canvas.getBoundingClientRect();
-        const centerX = this.canvas.width / 2;
-        const centerY = this.canvas.height / 2;
         
-        // Calculate the point in canvas coordinates before zoom
-        const canvasX = (screenX - rect.left - centerX - this.panX) / oldZoom + centerX;
-        const canvasY = (screenY - rect.top - centerY - this.panY) / oldZoom + centerY;
+        // Calculate the point in canvas coordinates before zoom using simplified transformation
+        const canvasX = (screenX - rect.left - this.panX) / oldZoom;
+        const canvasY = (screenY - rect.top - this.panY) / oldZoom;
         
         // Calculate where this point should be after zoom
-        const newPanX = (canvasX - centerX) * newZoom - (screenX - rect.left - centerX);
-        const newPanY = (canvasY - centerY) * newZoom - (screenY - rect.top - centerY);
+        const newPanX = (canvasX * newZoom) - (screenX - rect.left);
+        const newPanY = (canvasY * newZoom) - (screenY - rect.top);
         
         console.log('Canvas coords:', canvasX, canvasY, 'new pan:', newPanX, newPanY);
         
@@ -867,18 +1025,12 @@ class ColoringGame {
         // Clear canvas
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
-        // Apply zoom transformation centered on canvas
+        // Apply simple zoom and pan transformations
         this.ctx.save();
         
-        // Calculate center point for zoom
-        const centerX = this.canvas.width / 2;
-        const centerY = this.canvas.height / 2;
-        
-        // Apply transformations in the correct order:
-        // 1. Move to center, 2. Scale, 3. Move back from center, 4. Apply pan
-        this.ctx.translate(centerX + this.panX, centerY + this.panY);
+        // Apply transformations in simple order: pan first, then zoom
+        this.ctx.translate(this.panX, this.panY);
         this.ctx.scale(this.zoomLevel, this.zoomLevel);
-        this.ctx.translate(-centerX, -centerY);
         
         // Only redraw theme image if requested (not needed when just redrawing user modifications)
         if (redrawTheme) {
@@ -967,44 +1119,70 @@ class ColoringGame {
     // Convert screen coordinates to canvas coordinates
     screenToCanvas(screenX, screenY) {
         const rect = this.canvas.getBoundingClientRect();
-        const centerX = this.canvas.width / 2;
-        const centerY = this.canvas.height / 2;
         
-        // Convert screen coordinates to canvas coordinates considering centered zoom
-        const x = (screenX - rect.left - centerX - this.panX) / this.zoomLevel + centerX;
-        const y = (screenY - rect.top - centerY - this.panY) / this.zoomLevel + centerY;
+        // Fix: Proper coordinate transformation that accounts for zoom and pan
+        // First, get the position relative to the canvas element
+        const relativeX = screenX - rect.left;
+        const relativeY = screenY - rect.top;
+        
+        // Then, account for pan and zoom transformations
+        const x = (relativeX - this.panX) / this.zoomLevel;
+        const y = (relativeY - this.panY) / this.zoomLevel;
+        
+        console.log('screenToCanvas:', { 
+            screenX, 
+            screenY, 
+            rectLeft: rect.left, 
+            rectTop: rect.top, 
+            relativeX, 
+            relativeY,
+            panX: this.panX, 
+            panY: this.panY, 
+            zoomLevel: this.zoomLevel, 
+            resultX: x, 
+            resultY: y 
+        });
+        
         return { x, y };
     }
 
     // Convert canvas coordinates to screen coordinates
     canvasToScreen(canvasX, canvasY) {
         const rect = this.canvas.getBoundingClientRect();
-        const centerX = this.canvas.width / 2;
-        const centerY = this.canvas.height / 2;
         
-        // Convert canvas coordinates to screen coordinates considering centered zoom
-        const x = (canvasX - centerX) * this.zoomLevel + centerX + this.panX + rect.left;
-        const y = (canvasY - centerY) * this.zoomLevel + centerY + this.panY + rect.top;
+        // Simple coordinate transformation that matches redrawCanvas
+        // Apply zoom first, then pan, then add canvas offset
+        const x = (canvasX * this.zoomLevel) + this.panX + rect.left;
+        const y = (canvasY * this.zoomLevel) + this.panY + rect.top;
+        
         return { x, y };
     }
     
     floodFill(startX, startY, fillColor) {
         console.log('Flood fill called with:', { startX, startY, fillColor });
+        console.log('Current paint color:', this.paint.currentColor);
         
         // startX and startY are already canvas coordinates from screenToCanvas
         const actualX = Math.floor(startX);
         const actualY = Math.floor(startY);
         
         console.log('Using canvas coordinates:', { actualX, actualY });
+        console.log('Canvas dimensions:', { width: this.canvas.width, height: this.canvas.height });
         
-        // We need to get the image data from an untransformed canvas context
-        // to work with the correct pixel coordinates
+        // Check bounds
+        if (actualX < 0 || actualX >= this.canvas.width || actualY < 0 || actualY >= this.canvas.height) {
+            console.error('Coordinates out of bounds:', { actualX, actualY, width: this.canvas.width, height: this.canvas.height });
+            return;
+        }
+        
+        // Create a temporary canvas to work with untransformed coordinates
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = this.canvas.width;
         tempCanvas.height = this.canvas.height;
         const tempCtx = tempCanvas.getContext('2d');
         
         // Draw the current canvas state onto the temp canvas
+        // This gives us the untransformed image data to work with
         tempCtx.drawImage(this.canvas, 0, 0);
         
         // Get the image data from the temp canvas (untransformed)
@@ -1019,6 +1197,7 @@ class ColoringGame {
         const startA = pixels[startPos + 3];
         
         console.log('Starting pixel color:', { startR, startG, startB, startA });
+        console.log('Starting pixel position in array:', startPos);
         
         // Parse the fill color
         const fillR = parseInt(fillColor.slice(1, 3), 16);
@@ -1091,9 +1270,12 @@ class ColoringGame {
         if (pixelsFilled > 0) {
             console.log('Creating new history state with filled image data');
             
+            // Put the modified image data back onto the temp canvas
+            tempCtx.putImageData(imageData, 0, 0);
+            
             // Create a new history state with the filled image data
             const newState = {
-                imageData: imageData,
+                imageData: tempCtx.getImageData(0, 0, this.canvas.width, this.canvas.height),
                 theme: this.currentTheme,
                 fairySelection: this.currentFairySelection,
                 zoom: this.zoomLevel,
@@ -1114,8 +1296,8 @@ class ColoringGame {
             
             console.log('History updated, current index:', this.historyIndex, 'history length:', this.history.length);
             
-            // Redraw the canvas with the new state
-            this.redrawCanvas(false, false);
+            // Redraw the canvas with the new state, but ensure theme is redrawn
+            this.redrawCanvas(false, true);
             
             // Update undo/redo buttons
             this.updateUndoRedoButtons();

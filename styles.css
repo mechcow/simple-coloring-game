@@ -328,15 +328,25 @@ header p {
 .canvas-container {
     flex: 1;
     display: flex;
-    justify-content: center;
+    flex-direction: column;
     align-items: center;
     position: relative;
+    touch-action: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
 }
 
 #coloringCanvas {
-    border: 3px solid #e2e8f0;
-    border-radius: 15px;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
     cursor: crosshair;
+    touch-action: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
     box-shadow: 0 10px 30px rgba(0,0,0,0.1);
     background: white;
 }
@@ -464,7 +474,7 @@ header p {
 
 @media (max-width: 768px) {
     .container {
-        padding: 15px;
+        padding: 10px;
     }
     
     header h1 {
@@ -472,26 +482,110 @@ header p {
     }
     
     .game-container {
+        flex-direction: column;
         padding: 20px;
+        gap: 20px;
+    }
+    
+    .sidebar {
+        width: 100%;
+        order: 2;
+    }
+    
+    .canvas-container {
+        order: 1;
+        width: 100%;
+    }
+    
+    #coloringCanvas {
+        width: 100%;
+        height: auto;
+        max-height: 60vh;
     }
     
     .theme-buttons {
         grid-template-columns: 1fr;
+        gap: 8px;
+    }
+    
+    .theme-btn {
+        padding: 15px 12px;
+        font-size: 1rem;
+        min-height: 48px; /* Better touch target */
     }
     
     .basic-colors {
         grid-template-columns: repeat(5, 1fr);
-        gap: 4px;
+        gap: 8px;
     }
     
     .color-swatch {
-        width: 30px;
-        height: 30px;
-        border-width: 1px;
+        width: 40px;
+        height: 40px;
+        min-height: 48px; /* Better touch target */
     }
     
     .tool-buttons {
         grid-template-columns: 1fr;
+        gap: 8px;
+    }
+    
+    .tool-btn {
+        padding: 15px 12px;
+        min-height: 48px; /* Better touch target */
+    }
+    
+    .action-buttons {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+    
+    .btn {
+        padding: 15px 12px;
+        min-height: 48px; /* Better touch target */
+        font-size: 1rem;
+    }
+    
+    .zoom-buttons {
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+    
+    .zoom-buttons .btn {
+        min-height: 48px; /* Better touch target */
+    }
+    
+    /* Improve touch targets for form elements */
+    input[type="color"] {
+        width: 60px;
+        height: 48px;
+        min-height: 48px;
+    }
+    
+    input[type="range"] {
+        height: 48px;
+        min-height: 48px;
+    }
+    
+    /* Fairy selection mobile improvements */
+    .fairy-options {
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+    
+    .fairy-option {
+        padding: 20px;
+        min-height: 120px;
+    }
+    
+    .fairy-option img {
+        width: 120px;
+        height: 120px;
+    }
+    
+    .fairy-selection-content {
+        padding: 20px;
+        margin: 20px;
     }
 }
 
@@ -626,5 +720,56 @@ input[type="range"]::-moz-range-thumb {
     .fairy-selection-content {
         padding: 20px;
         margin: 20px;
+    }
+} 
+
+/* Additional touch-friendly improvements */
+.color-swatch,
+.theme-btn,
+.tool-btn,
+.btn {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Prevent text selection on interactive elements */
+.color-swatch,
+.theme-btn,
+.tool-btn,
+.btn {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+/* Improve focus states for accessibility */
+.color-swatch:focus,
+.theme-btn:focus,
+.tool-btn:focus,
+.btn:focus {
+    outline: 2px solid #667eea;
+    outline-offset: 2px;
+}
+
+/* Better hover states for touch devices */
+@media (hover: hover) {
+    .color-swatch:hover,
+    .theme-btn:hover,
+    .tool-btn:hover,
+    .btn:hover:not(.disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+    }
+}
+
+/* Disable hover effects on touch devices */
+@media (hover: none) {
+    .color-swatch:hover,
+    .theme-btn:hover,
+    .tool-btn:hover,
+    .btn:hover:not(.disabled) {
+        transform: none;
+        box-shadow: none;
     }
 } 
