@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coordinate Transformation Debug</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+        }
+        .debug-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .test-info {
+            background: #e3f2fd;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #2196f3;
+        }
+        .canvas-container {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .canvas-section {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .canvas-section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        #testCanvas, #gameCanvas {
+            border: 2px solid #333;
+            background: white;
+            cursor: crosshair;
+        }
+        .coordinates {
+            background: #f3e5f5;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-family: monospace;
+            border-left: 4px solid #9c27b0;
+        }
+        .coordinates h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .coordinate-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .coordinate-item {
+            background: #e8f5e8;
+            padding: 10px;
+            border-radius: 5px;
+            border-left: 4px solid #4caf50;
+        }
+        .coordinate-item h4 {
+            margin-top: 0;
+            color: #333;
+        }
+        .test-controls {
+            background: #fff3e0;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #ff9800;
+        }
+        .test-controls button {
+            background: #ff9800;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        .test-controls button:hover {
+            background: #f57c00;
+        }
+        .test-controls button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            background: #e8f5e8;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            border-left: 4px solid #4caf50;
+        }
+        .error {
+            background: #ffebee;
+            border-left: 4px solid #f44336;
+        }
+        .warning {
+            background: #fff8e1;
+            border-left: 4px solid #ffc107;
+        }
+    </style>
+</head>
+<body>
+    <div class="debug-container">
+        <div class="test-info">
+            <h2>Coordinate Transformation Debug</h2>
+            <p>This page tests the actual game's coordinate transformation methods to identify any issues with mobile coordinate calculation.</p>
+            <p><strong>Instructions:</strong></p>
+            <ul>
+                <li>Touch/drag on both canvases to see coordinate calculations</li>
+                <li>Use the test controls to manipulate zoom and pan</li>
+                <li>Compare the coordinate transformations between the simple test and the game</li>
+                <li>Check the console for detailed debugging information</li>
+            </ul>
+        </div>
+
+        <div class="test-controls">
+            <h3>Test Controls</h3>
+            <button id="resetZoom">Reset Zoom</button>
+            <button id="zoomIn">Zoom In</button>
+            <button id="zoomOut">Zoom Out</button>
+            <button id="resetPan">Reset Pan</button>
+            <button id="panLeft">Pan Left</button>
+            <button id="panRight">Pan Right</button>
+            <button id="panUp">Pan Up</button>
+            <button id="panDown">Pan Down</button>
+            <button id="testCoordinates">Test Coordinate Roundtrip</button>
+            <div class="status" id="controlStatus">Ready to test</div>
+        </div>
+
+        <div class="canvas-container">
+            <div class="canvas-section">
+                <h3>Simple Test Canvas (400×300)</h3>
+                <canvas id="testCanvas" width="400" height="300"></canvas>
+                <div class="coordinates">
+                    <h4>Simple Test Coordinates:</h4>
+                    <div id="simpleCoordInfo">Touch the canvas to see coordinates...</div>
+                </div>
+            </div>
+
+            <div class="canvas-section">
+                <h3>Game Canvas (800×600)</h3>
+                <canvas id="gameCanvas" width="800" height="600"></canvas>
+                <div class="coordinates">
+                    <h4>Game Canvas Coordinates:</h4>
+                    <div id="gameCoordInfo">Touch the canvas to see coordinates...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="coordinate-grid">
+            <div class="coordinate-item">
+                <h4>Canvas Scaling Information</h4>
+                <div id="scalingInfo">Loading...</div>
+            </div>
+            <div class="coordinate-item">
+                <h4>Zoom & Pan Status</h4>
+                <div id="transformInfo">Loading...</div>
+            </div>
+            <div class="coordinate-item">
+                <h4>Coordinate Roundtrip Test</h4>
+                <div id="roundtripInfo">Click "Test Coordinate Roundtrip" to run</div>
+            </div>
+            <div class="coordinate-item">
+                <h4>Touch Event Log</h4>
+                <div id="touchLog">No touch events yet</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Simple test canvas (like mobile-test.html)
+        const testCanvas = document.getElementById('testCanvas');
+        const testCtx = testCanvas.getContext('2d');
+        const simpleCoordInfo = document.getElementById('simpleCoordInfo');
+
+        // Game canvas (simulating the actual game)
+        const gameCanvas = document.getElementById('gameCanvas');
+        const gameCtx = gameCanvas.getContext('2d');
+        const gameCoordInfo = document.getElementById('gameCoordInfo');
+
+        // Game simulation variables
+        let gameZoom = 1;
+        let gamePanX = 0;
+        let gamePanY = 0;
+        let gameCanvasScaleX = 1;
+        let gameCanvasScaleY = 1;
+
+        // Update canvas scaling information
+        function updateGameCanvasScaling() {
+            const rect = gameCanvas.getBoundingClientRect();
+            gameCanvasScaleX = rect.width / gameCanvas.width;
+            gameCanvasScaleY = rect.height / gameCanvas.height;
+
+            console.log('Game canvas scaling:', {
+                scaleX: gameCanvasScaleX,
+                scaleY: gameCanvasScaleY,
+                displayWidth: rect.width,
+                displayHeight: rect.height,
+                canvasWidth: gameCanvas.width,
+                canvasHeight: gameCanvas.height
+            });
+
+            updateScalingInfo();
+        }
+
+        // Game's screenToCanvas method (copied from the actual game)
+        function gameScreenToCanvas(screenX, screenY) {
+            const rect = gameCanvas.getBoundingClientRect();
+            
+            // Get the position relative to the canvas element
+            const relativeX = screenX - rect.left;
+            const relativeY = screenY - rect.top;
+            
+            // Account for canvas CSS scaling (important for mobile)
+            const scaledX = relativeX / gameCanvasScaleX;
+            const scaledY = relativeY / gameCanvasScaleY;
+            
+            // Then, account for pan and zoom transformations
+            const x = (scaledX - gamePanX) / gameZoom;
+            const y = (scaledY - gamePanY) / gameZoom;
+            
+            console.log('Game screenToCanvas:', { 
+                screenX, 
+                screenY, 
+                rectLeft: rect.left, 
+                rectTop: rect.top, 
+                relativeX, 
+                relativeY,
+                canvasScaleX: gameCanvasScaleX,
+                canvasScaleY: gameCanvasScaleY,
+                scaledX,
+                scaledY,
+                panX: gamePanX, 
+                panY: gamePanY, 
+                zoomLevel: gameZoom, 
+                resultX: x, 
+                resultY: y 
+            });
+            
+            return { x, y };
+        }
+
+        // Game's canvasToScreen method (copied from the actual game)
+        function gameCanvasToScreen(canvasX, canvasY) {
+            const rect = gameCanvas.getBoundingClientRect();
+            
+            // Apply zoom first, then pan, then scale to display size, then add canvas offset
+            const scaledX = (canvasX * gameZoom + gamePanX) * gameCanvasScaleX + rect.left;
+            const scaledY = (canvasY * gameZoom + gamePanY) * gameCanvasScaleY + rect.top;
+            
+            return { x: scaledX, y: scaledY };
+        }
+
+        // Simple test canvas methods
+        function simpleScreenToCanvas(screenX, screenY) {
+            const rect = testCanvas.getBoundingClientRect();
+            const relativeX = screenX - rect.left;
+            const relativeY = screenY - rect.top;
+
+            // Account for canvas CSS scaling
+            const scaleX = rect.width / testCanvas.width;
+            const scaleY = rect.height / testCanvas.height;
+            const scaledX = relativeX / scaleX;
+            const scaledY = relativeY / scaleY;
+
+            return { x: scaledX, y: scaledY };
+        }
+
+        function drawPoint(ctx, x, y, color = 'red', size = 3) {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(x, y, size, 0, 2 * Math.PI);
+            ctx.fill();
+        }
+
+        function handleTouch(e, canvas, isGame = false) {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const screenCoords = { clientX: touch.clientX, clientY: touch.clientY };
+            
+            if (isGame) {
+                const canvasCoords = gameScreenToCanvas(screenCoords.clientX, screenCoords.clientY);
+                drawPoint(gameCtx, canvasCoords.x, canvasCoords.y, 'blue', 5);
+                
+                // Test reverse transformation
+                const screenCoordsBack = gameCanvasToScreen(canvasCoords.x, canvasCoords.y);
+                
+                gameCoordInfo.innerHTML = `
+                    <strong>Touch Event:</strong> ${e.type}<br>
+                    <strong>Screen Coordinates:</strong> (${screenCoords.clientX}, ${screenCoords.clientY})<br>
+                    <strong>Canvas Coordinates:</strong> (${Math.round(canvasCoords.x)}, ${Math.round(canvasCoords.y)})<br>
+                    <strong>Back to Screen:</strong> (${Math.round(screenCoordsBack.x)}, ${Math.round(screenCoordsBack.y)})<br>
+                    <strong>Difference:</strong> (${Math.round(screenCoordsBack.x - screenCoords.clientX)}, ${Math.round(screenCoordsBack.y - screenCoords.clientY)})<br>
+                    <strong>Canvas Scale:</strong> X: ${gameCanvasScaleX.toFixed(3)}, Y: ${gameCanvasScaleY.toFixed(3)}<br>
+                    <strong>Zoom:</strong> ${gameZoom.toFixed(2)}, <strong>Pan:</strong> (${gamePanX.toFixed(1)}, ${gamePanY.toFixed(1)})
+                `;
+                
+                logTouchEvent('Game', screenCoords, canvasCoords, screenCoordsBack);
+            } else {
+                const canvasCoords = simpleScreenToCanvas(screenCoords.clientX, screenCoords.clientY);
+                drawPoint(testCtx, canvasCoords.x, canvasCoords.y, 'blue', 3);
+                
+                simpleCoordInfo.innerHTML = `
+                    <strong>Touch Event:</strong> ${e.type}<br>
+                    <strong>Screen Coordinates:</strong> (${screenCoords.clientX}, ${screenCoords.clientY})<br>
+                    <strong>Canvas Coordinates:</strong> (${Math.round(canvasCoords.x)}, ${Math.round(canvasCoords.y)})<br>
+                    <strong>Canvas Scale:</strong> X: ${(testCanvas.getBoundingClientRect().width / testCanvas.width).toFixed(3)}, Y: ${(testCanvas.getBoundingClientRect().height / testCanvas.height).toFixed(3)}
+                `;
+            }
+        }
+
+        function handleMouse(e, canvas, isGame = false) {
+            if (isGame) {
+                const canvasCoords = gameScreenToCanvas(e.clientX, e.clientY);
+                drawPoint(gameCtx, canvasCoords.x, canvasCoords.y, 'red', 3);
+                
+                const screenCoordsBack = gameCanvasToScreen(canvasCoords.x, canvasCoords.y);
+                
+                gameCoordInfo.innerHTML = `
+                    <strong>Mouse Event:</strong> ${e.type}<br>
+                    <strong>Screen Coordinates:</strong> (${e.clientX}, ${e.clientY})<br>
+                    <strong>Canvas Coordinates:</strong> (${Math.round(canvasCoords.x)}, ${Math.round(canvasCoords.y)})<br>
+                    <strong>Back to Screen:</strong> (${Math.round(screenCoordsBack.x)}, ${Math.round(screenCoordsBack.y)})<br>
+                    <strong>Difference:</strong> (${Math.round(screenCoordsBack.x - e.clientX)}, ${Math.round(screenCoordsBack.y - e.clientY)})<br>
+                    <strong>Canvas Scale:</strong> X: ${gameCanvasScaleX.toFixed(3)}, Y: ${gameCanvasScaleY.toFixed(3)}<br>
+                    <strong>Zoom:</strong> ${gameZoom.toFixed(2)}, <strong>Pan:</strong> (${gamePanX.toFixed(1)}, ${gamePanY.toFixed(1)})
+                `;
+            } else {
+                const canvasCoords = simpleScreenToCanvas(e.clientX, e.clientY);
+                drawPoint(testCtx, canvasCoords.x, canvasCoords.y, 'red', 3);
+                
+                simpleCoordInfo.innerHTML = `
+                    <strong>Mouse Event:</strong> ${e.type}<br>
+                    <strong>Screen Coordinates:</strong> (${e.clientX}, ${e.clientY})<br>
+                    <strong>Canvas Coordinates:</strong> (${Math.round(canvasCoords.x)}, ${Math.round(canvasCoords.y)})<br>
+                    <strong>Canvas Scale:</strong> X: ${(testCanvas.getBoundingClientRect().width / testCanvas.width).toFixed(3)}, Y: ${(testCanvas.getBoundingClientRect().height / testCanvas.height).toFixed(3)}
+                `;
+            }
+        }
+
+        function logTouchEvent(type, screen, canvas, backToScreen) {
+            const touchLog = document.getElementById('touchLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `
+                <div style="margin-bottom: 10px; padding: 8px; background: #f0f0f0; border-radius: 4px;">
+                    <strong>${timestamp} - ${type}</strong><br>
+                    Screen: (${screen.clientX}, ${screen.clientY}) → 
+                    Canvas: (${Math.round(canvas.x)}, ${Math.round(canvas.y)}) → 
+                    Back: (${Math.round(backToScreen.x)}, ${Math.round(backToScreen.y)})<br>
+                    Diff: (${Math.round(backToScreen.x - screen.clientX)}, ${Math.round(backToScreen.y - screen.clientY)})
+                </div>
+            `;
+            touchLog.innerHTML = logEntry + touchLog.innerHTML;
+            
+            // Keep only last 10 entries
+            const entries = touchLog.querySelectorAll('div');
+            if (entries.length > 10) {
+                entries[entries.length - 1].remove();
+            }
+        }
+
+        function updateScalingInfo() {
+            const scalingInfo = document.getElementById('scalingInfo');
+            scalingInfo.innerHTML = `
+                <strong>Test Canvas:</strong><br>
+                Scale X: ${(testCanvas.getBoundingClientRect().width / testCanvas.width).toFixed(3)}<br>
+                Scale Y: ${(testCanvas.getBoundingClientRect().height / testCanvas.height).toFixed(3)}<br>
+                Display: ${testCanvas.getBoundingClientRect().width.toFixed(1)} × ${testCanvas.getBoundingClientRect().height.toFixed(1)}<br>
+                Internal: ${testCanvas.width} × ${testCanvas.height}<br><br>
+                <strong>Game Canvas:</strong><br>
+                Scale X: ${gameCanvasScaleX.toFixed(3)}<br>
+                Scale Y: ${gameCanvasScaleY.toFixed(3)}<br>
+                Display: ${gameCanvas.getBoundingClientRect().width.toFixed(1)} × ${gameCanvas.getBoundingClientRect().height.toFixed(1)}<br>
+                Internal: ${gameCanvas.width} × ${gameCanvas.height}
+            `;
+        }
+
+        function updateTransformInfo() {
+            const transformInfo = document.getElementById('transformInfo');
+            transformInfo.innerHTML = `
+                <strong>Zoom Level:</strong> ${gameZoom.toFixed(2)}<br>
+                <strong>Pan Offset:</strong> (${gamePanX.toFixed(1)}, ${gamePanY.toFixed(1)})<br>
+                <strong>Effective Scale:</strong> X: ${(gameCanvasScaleX * gameZoom).toFixed(3)}, Y: ${(gameCanvasScaleY * gameZoom).toFixed(3)}
+            `;
+        }
+
+        function testCoordinateRoundtrip() {
+            const roundtripInfo = document.getElementById('roundtripInfo');
+            const testPoints = [
+                { x: 100, y: 100 },
+                { x: 400, y: 300 },
+                { x: 700, y: 500 }
+            ];
+            
+            let results = '<strong>Coordinate Roundtrip Test Results:</strong><br>';
+            
+            testPoints.forEach((point, index) => {
+                const screen = gameCanvasToScreen(point.x, point.y);
+                const backToCanvas = gameScreenToCanvas(screen.x, screen.y);
+                const error = Math.sqrt(Math.pow(backToCanvas.x - point.x, 2) + Math.pow(backToCanvas.y - point.y, 2));
+                
+                results += `<br><strong>Test ${index + 1}:</strong><br>`;
+                results += `Original: (${point.x}, ${point.y})<br>`;
+                results += `To Screen: (${Math.round(screen.x)}, ${Math.round(screen.y)})<br>`;
+                results += `Back to Canvas: (${Math.round(backToCanvas.x)}, ${Math.round(backToCanvas.y)})<br>`;
+                results += `Error: ${error.toFixed(2)} pixels<br>`;
+                
+                if (error < 1) {
+                    results += '<span style="color: green;">✓ PASS</span>';
+                } else if (error < 5) {
+                    results += '<span style="color: orange;">⚠ WARNING</span>';
+                } else {
+                    results += '<span style="color: red;">✗ FAIL</span>';
+                }
+            });
+            
+            roundtripInfo.innerHTML = results;
+        }
+
+        // Event listeners
+        testCanvas.addEventListener('touchstart', (e) => handleTouch(e, testCanvas, false), { passive: false });
+        testCanvas.addEventListener('touchmove', (e) => handleTouch(e, testCanvas, false), { passive: false });
+        testCanvas.addEventListener('mousedown', (e) => handleMouse(e, testCanvas, false));
+        testCanvas.addEventListener('mousemove', (e) => handleMouse(e, testCanvas, false));
+
+        gameCanvas.addEventListener('touchstart', (e) => handleTouch(e, gameCanvas, true), { passive: false });
+        gameCanvas.addEventListener('touchmove', (e) => handleTouch(e, gameCanvas, true), { passive: false });
+        gameCanvas.addEventListener('mousedown', (e) => handleMouse(e, gameCanvas, true));
+        gameCanvas.addEventListener('mousemove', (e) => handleMouse(e, gameCanvas, true));
+
+        // Control button event listeners
+        document.getElementById('resetZoom').addEventListener('click', () => {
+            gameZoom = 1;
+            updateTransformInfo();
+            updateControlStatus('Zoom reset to 100%');
+        });
+
+        document.getElementById('zoomIn').addEventListener('click', () => {
+            gameZoom = Math.min(5, gameZoom + 0.2);
+            updateTransformInfo();
+            updateControlStatus(`Zoomed in to ${Math.round(gameZoom * 100)}%`);
+        });
+
+        document.getElementById('zoomOut').addEventListener('click', () => {
+            gameZoom = Math.max(0.2, gameZoom - 0.2);
+            updateTransformInfo();
+            updateControlStatus(`Zoomed out to ${Math.round(gameZoom * 100)}%`);
+        });
+
+        document.getElementById('resetPan').addEventListener('click', () => {
+            gamePanX = 0;
+            gamePanY = 0;
+            updateTransformInfo();
+            updateControlStatus('Pan reset to (0, 0)');
+        });
+
+        document.getElementById('panLeft').addEventListener('click', () => {
+            gamePanX -= 50;
+            updateTransformInfo();
+            updateControlStatus(`Panned left to (${gamePanX.toFixed(1)}, ${gamePanY.toFixed(1)})`);
+        });
+
+        document.getElementById('panRight').addEventListener('click', () => {
+            gamePanX += 50;
+            updateTransformInfo();
+            updateControlStatus(`Panned right to (${gamePanX.toFixed(1)}, ${gamePanY.toFixed(1)})`);
+        });
+
+        document.getElementById('panUp').addEventListener('click', () => {
+            gamePanY -= 50;
+            updateTransformInfo();
+            updateControlStatus(`Panned up to (${gamePanX.toFixed(1)}, ${gamePanY.toFixed(1)})`);
+        });
+
+        document.getElementById('panDown').addEventListener('click', () => {
+            gamePanY += 50;
+            updateTransformInfo();
+            updateControlStatus(`Panned down to (${gamePanX.toFixed(1)}, ${gamePanY.toFixed(1)})`);
+        });
+
+        document.getElementById('testCoordinates').addEventListener('click', testCoordinateRoundtrip);
+
+        function updateControlStatus(message) {
+            const status = document.getElementById('controlStatus');
+            status.textContent = message;
+            status.className = 'status';
+        }
+
+        // Handle resize
+        window.addEventListener('resize', () => {
+            setTimeout(() => {
+                updateGameCanvasScaling();
+                updateScalingInfo();
+            }, 100);
+        });
+
+        window.addEventListener('orientationchange', () => {
+            setTimeout(() => {
+                updateGameCanvasScaling();
+                updateScalingInfo();
+            }, 300);
+        });
+
+        // Initialize
+        updateGameCanvasScaling();
+        updateTransformInfo();
+
+        // Draw reference elements on test canvas
+        testCtx.fillStyle = 'black';
+        testCtx.font = '12px Arial';
+        testCtx.fillText('Top-left (0,0)', 10, 20);
+        testCtx.fillText('Bottom-right (400,300)', 250, 290);
+
+        // Draw grid lines on test canvas
+        testCtx.strokeStyle = '#ccc';
+        testCtx.lineWidth = 1;
+        for (let i = 0; i <= 400; i += 50) {
+            testCtx.beginPath();
+            testCtx.moveTo(i, 0);
+            testCtx.lineTo(i, 300);
+            testCtx.stroke();
+        }
+        for (let i = 0; i <= 300; i += 50) {
+            testCtx.beginPath();
+            testCtx.moveTo(0, i);
+            testCtx.lineTo(400, i);
+            testCtx.stroke();
+        }
+
+        // Draw reference elements on game canvas
+        gameCtx.fillStyle = 'black';
+        gameCtx.font = '16px Arial';
+        gameCtx.fillText('Top-left (0,0)', 20, 30);
+        gameCtx.fillText('Bottom-right (800,600)', 500, 580);
+
+        // Draw grid lines on game canvas
+        gameCtx.strokeStyle = '#ccc';
+        gameCtx.lineWidth = 1;
+        for (let i = 0; i <= 800; i += 100) {
+            gameCtx.beginPath();
+            gameCtx.moveTo(i, 0);
+            gameCtx.lineTo(i, 600);
+            gameCtx.stroke();
+        }
+        for (let i = 0; i <= 600; i += 100) {
+            gameCtx.beginPath();
+            gameCtx.moveTo(0, i);
+            gameCtx.lineTo(800, i);
+            gameCtx.stroke();
+        }
+
+        console.log('Coordinate debug page loaded. Use the controls to test zoom and pan, then touch/drag on the canvases to see coordinate transformations.');
+    </script>
+</body>
+</html>

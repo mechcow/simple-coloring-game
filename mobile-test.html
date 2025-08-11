@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobile Coordinate Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+        .test-info {
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        #testCanvas {
+            border: 2px solid #333;
+            background: white;
+            cursor: crosshair;
+        }
+        .coordinates {
+            background: #e8f4f8;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 15px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-info">
+        <h2>Mobile Coordinate Test</h2>
+        <p>This test helps verify that coordinate calculations work correctly on mobile devices.</p>
+        <p><strong>Instructions:</strong> Touch/drag on the canvas to see coordinate calculations.</p>
+    </div>
+    
+    <canvas id="testCanvas" width="400" height="300"></canvas>
+    
+    <div class="coordinates">
+        <h3>Coordinate Information:</h3>
+        <div id="coordInfo">Touch the canvas to see coordinates...</div>
+    </div>
+    
+    <script>
+        const canvas = document.getElementById('testCanvas');
+        const ctx = canvas.getContext('2d');
+        const coordInfo = document.getElementById('coordInfo');
+        
+        // Canvas scaling information
+        let canvasScaleX = 1;
+        let canvasScaleY = 1;
+        
+        function updateCanvasScaling() {
+            const rect = canvas.getBoundingClientRect();
+            canvasScaleX = rect.width / canvas.width;
+            canvasScaleY = rect.height / canvas.height;
+            
+            console.log('Canvas scaling:', {
+                scaleX: canvasScaleX,
+                scaleY: canvasScaleY,
+                displayWidth: rect.width,
+                displayHeight: rect.height,
+                canvasWidth: canvas.width,
+                canvasHeight: canvas.height
+            });
+        }
+        
+        function screenToCanvas(screenX, screenY) {
+            const rect = canvas.getBoundingClientRect();
+            const relativeX = screenX - rect.left;
+            const relativeY = screenY - rect.top;
+            
+            // Account for canvas CSS scaling
+            const scaledX = relativeX / canvasScaleX;
+            const scaledY = relativeY / canvasScaleY;
+            
+            return { x: scaledX, y: scaledY };
+        }
+        
+        function drawPoint(x, y, color = 'red') {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(x, y, 3, 0, 2 * Math.PI);
+            ctx.fill();
+        }
+        
+        function handleTouch(e) {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const screenCoords = { clientX: touch.clientX, clientY: touch.clientY };
+            const canvasCoords = screenToCanvas(screenCoords.clientX, screenCoords.clientY);
+            
+            // Draw a point at the touch location
+            drawPoint(canvasCoords.x, canvasCoords.y, 'blue');
+            
+            // Update coordinate display
+            coordInfo.innerHTML = `
+                <strong>Touch Event:</strong> ${e.type}<br>
+                <strong>Screen Coordinates:</strong> (${screenCoords.clientX}, ${screenCoords.clientY})<br>
+                <strong>Canvas Coordinates:</strong> (${Math.round(canvasCoords.x)}, ${Math.round(canvasCoords.y)})<br>
+                <strong>Canvas Scale:</strong> X: ${canvasScaleX.toFixed(3)}, Y: ${canvasScaleY.toFixed(3)}<br>
+                <strong>Canvas Size:</strong> ${canvas.width} × ${canvas.height}<br>
+                <strong>Display Size:</strong> ${canvas.getBoundingClientRect().width.toFixed(1)} × ${canvas.getBoundingClientRect().height.toFixed(1)}
+            `;
+        }
+        
+        function handleMouse(e) {
+            const canvasCoords = screenToCanvas(e.clientX, e.clientY);
+            
+            // Draw a point at the mouse location
+            drawPoint(canvasCoords.x, canvasCoords.y, 'red');
+            
+            // Update coordinate display
+            coordInfo.innerHTML = `
+                <strong>Mouse Event:</strong> ${e.type}<br>
+                <strong>Screen Coordinates:</strong> (${e.clientX}, ${e.clientY})<br>
+                <strong>Canvas Coordinates:</strong> (${Math.round(canvasCoords.x)}, ${Math.round(canvasCoords.y)})<br>
+                <strong>Canvas Scale:</strong> X: ${canvasScaleX.toFixed(3)}, Y: ${canvasScaleY.toFixed(3)}<br>
+                <strong>Canvas Size:</strong> ${canvas.width} × ${canvas.height}<br>
+                <strong>Display Size:</strong> ${canvas.getBoundingClientRect().width.toFixed(1)} × ${canvas.getBoundingClientRect().height.toFixed(1)}
+            `;
+        }
+        
+        // Event listeners
+        canvas.addEventListener('touchstart', handleTouch, { passive: false });
+        canvas.addEventListener('touchmove', handleTouch, { passive: false });
+        canvas.addEventListener('mousedown', handleMouse);
+        canvas.addEventListener('mousemove', handleMouse);
+        
+        // Handle resize
+        window.addEventListener('resize', updateCanvasScaling);
+        window.addEventListener('orientationchange', () => {
+            setTimeout(updateCanvasScaling, 300);
+        });
+        
+        // Initialize
+        updateCanvasScaling();
+        
+        // Draw some reference points
+        ctx.fillStyle = 'black';
+        ctx.font = '12px Arial';
+        ctx.fillText('Top-left (0,0)', 10, 20);
+        ctx.fillText('Bottom-right (400,300)', 250, 290);
+        
+        // Draw grid lines
+        ctx.strokeStyle = '#ccc';
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= 400; i += 50) {
+            ctx.beginPath();
+            ctx.moveTo(i, 0);
+            ctx.lineTo(i, 300);
+            ctx.stroke();
+        }
+        for (let i = 0; i <= 300; i += 50) {
+            ctx.beginPath();
+            ctx.moveTo(0, i);
+            ctx.lineTo(400, i);
+            ctx.stroke();
+        }
+    </script>
+</body>
+</html>

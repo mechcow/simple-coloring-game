@@ -14,12 +14,16 @@ class Paint {
     startDrawing(e) {
         const eventCoords = this.game.getEventCoordinates(e);
         if (this.currentTool === 'fill') {
-            // Small delay for mobile devices to ensure proper touch handling
+            // Debug coordinates for fill tool
+            this.debugCoordinates(e, 'fill');
+            
+            // For mobile devices, use a shorter delay and ensure proper coordinate calculation
+            const delay = e.touches ? 25 : 50; // Shorter delay for touch events
             setTimeout(() => {
                 const coords = this.game.screenToCanvas(eventCoords.clientX, eventCoords.clientY);
                 console.log('Fill tool activated at:', coords.x, coords.y, 'with color:', this.currentColor);
                 this.game.floodFill(coords.x, coords.y, this.currentColor);
-            }, 50);
+            }, delay);
             this.isDrawing = false; // Ensure fill tool doesn't leave drawing state active
             return; // Don't start drawing for fill tool
         }
@@ -42,6 +46,11 @@ class Paint {
             this.ctx.globalCompositeOperation = 'destination-out';
         } else {
             this.ctx.globalCompositeOperation = 'source-over';
+        }
+
+        // Debug coordinates for brush tool (only log occasionally to avoid spam)
+        if (Math.random() < 0.1) { // Log 10% of the time
+            this.debugCoordinates(e, 'brush');
         }
 
         console.log('Drawing with color:', this.currentColor, 'tool:', this.currentTool);
@@ -105,6 +114,46 @@ class Paint {
             this.canvas.style.cursor = 'crosshair';
         }
     }
+    
+    // Debug method to help troubleshoot coordinate issues
+    debugCoordinates(e, tool = 'unknown') {
+        const eventCoords = this.game.getEventCoordinates(e);
+        const canvasCoords = this.game.screenToCanvas(eventCoords.clientX, eventCoords.clientY);
+        const rect = this.canvas.getBoundingClientRect();
+        
+        console.log(`Debug ${tool} coordinates:`, {
+            event: e.type,
+            screenX: eventCoords.clientX,
+            screenY: eventCoords.clientY,
+            rectLeft: rect.left,
+            rectTop: rect.top,
+            relativeX: eventCoords.clientX - rect.left,
+            relativeY: eventCoords.clientY - rect.top,
+            canvasScaleX: this.game.canvasScaleX,
+            canvasScaleY: this.game.canvasScaleY,
+            panX: this.game.panX,
+            panY: this.game.panY,
+            zoomLevel: this.game.zoomLevel,
+            finalCanvasX: canvasCoords.x,
+            finalCanvasY: canvasCoords.y,
+            canvasWidth: this.canvas.width,
+            canvasHeight: this.canvas.height,
+            displayWidth: rect.width,
+            displayHeight: rect.height
+        });
+        
+        // Also log the reverse transformation to verify consistency
+        const screenCoords = this.game.canvasToScreen(canvasCoords.x, canvasCoords.y);
+        console.log(`${tool} tool - Reverse transformation verification:`, {
+            canvas: { x: Math.round(canvasCoords.x), y: Math.round(canvasCoords.y) },
+            backToScreen: { x: Math.round(screenCoords.x), y: Math.round(screenCoords.y) },
+            original: { x: eventCoords.clientX, y: eventCoords.clientY },
+            difference: { 
+                x: Math.round(screenCoords.x - eventCoords.clientX), 
+                y: Math.round(screenCoords.y - eventCoords.clientY) 
+            }
+        });
+    }
 }
 
 class ColoringGame {
@@ -129,9 +178,9 @@ class ColoringGame {
         
         // Zoom functionality
         this.zoomLevel = 1;
-        this.minZoom = 0.25;
-        this.maxZoom = 4;
-        this.zoomStep = 0.25;
+        this.minZoom = 0.1;
+        this.maxZoom = 5;
+        this.zoomStep = 0.1; // Smaller step for smoother scrolling
         this.panX = 0;
         this.panY = 0;
         this.isPanning = false;
@@ -143,6 +192,10 @@ class ColoringGame {
         
         // Track current fairy selection
         this.currentFairySelection = 'fairy-1';
+        
+        // Canvas scaling information for mobile
+        this.canvasScaleX = 1;
+        this.canvasScaleY = 1;
         
         this.themes = {
             fairy: {
@@ -184,6 +237,69 @@ class ColoringGame {
         this.init();
     }
     
+    // Get the actual display dimensions of the canvas (accounting for CSS scaling)
+    getCanvasDisplayDimensions() {
+        const rect = this.canvas.getBoundingClientRect();
+        const devicePixelRatio = window.devicePixelRatio || 1;
+        
+        return {
+            width: rect.width,
+            height: rect.height,
+            scaleX: rect.width / this.canvas.width,
+            scaleY: rect.height / this.canvas.height,
+            devicePixelRatio: devicePixelRatio
+        };
+    }
+    
+    // Update canvas scaling information (call this when canvas size changes)
+    updateCanvasScaling() {
+        const displayDims = this.getCanvasDisplayDimensions();
+        this.canvasScaleX = displayDims.scaleX;
+        this.canvasScaleY = displayDims.scaleY;
+        console.log('Canvas scaling updated:', { 
+            scaleX: this.canvasScaleX, 
+            scaleY: this.canvasScaleY,
+            displayWidth: displayDims.width,
+            displayHeight: displayDims.height,
+            canvasWidth: this.canvas.width,
+            canvasHeight: this.canvas.height,
+            devicePixelRatio: displayDims.devicePixelRatio,
+            userAgent: navigator.userAgent
+        });
+    }
+    
+    // Optimize canvas for high-DPI displays
+    optimizeCanvasForHighDPI() {
+        const devicePixelRatio = window.devicePixelRatio || 1;
+        if (devicePixelRatio > 1) {
+            console.log('High-DPI display detected, device pixel ratio:', devicePixelRatio);
+            
+            // Get the canvas's CSS size
+            const rect = this.canvas.getBoundingClientRect();
+            const cssWidth = rect.width;
+            const cssHeight = rect.height;
+            
+            // Set the canvas size to account for device pixel ratio
+            this.canvas.width = cssWidth * devicePixelRatio;
+            this.canvas.height = cssHeight * devicePixelRatio;
+            
+            // Scale the drawing context so everything draws at the correct size
+            this.ctx.scale(devicePixelRatio, devicePixelRatio);
+            
+            // Set the CSS size back to the original size
+            this.canvas.style.width = cssWidth + 'px';
+            this.canvas.style.height = cssHeight + 'px';
+            
+            console.log('Canvas optimized for high-DPI:', {
+                cssWidth,
+                cssHeight,
+                actualWidth: this.canvas.width,
+                actualHeight: this.canvas.height,
+                devicePixelRatio
+            });
+        }
+    }
+    
     getEventCoordinates(e) {
         let coords;
         if (e.touches && e.touches.length) {
@@ -202,6 +318,12 @@ class ColoringGame {
         this.loadTheme(this.currentTheme);
         this.updateUI();
         this.updateUndoRedoButtons(); // Initialize undo/redo button states
+        
+        // Update canvas scaling information
+        this.updateCanvasScaling();
+        
+        // Optimize canvas for high-DPI displays
+        this.optimizeCanvasForHighDPI();
         
         // For fairy theme, automatically load the first fairy image
         if (this.currentTheme === 'fairy') {
@@ -432,14 +554,22 @@ class ColoringGame {
             }
         }, { passive: false });
         
+        // Prevent context menu on long press (important for mobile)
+        this.canvas.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+        });
+        
         // Mouse wheel zoom centered on mouse position
         this.canvas.addEventListener('wheel', (e) => {
             e.preventDefault();
-            const delta = e.deltaY > 0 ? -1 : 1;
+            // Use smaller zoom steps for scroll wheel for smoother experience
+            const scrollZoomStep = 0.05; // Much smaller step for scroll wheel
+            const delta = e.deltaY > 0 ? -scrollZoomStep : scrollZoomStep;
+            
             if (delta > 0) {
-                this.zoomInAtPoint(e.clientX, e.clientY);
+                this.zoomInAtPoint(e.clientX, e.clientY, scrollZoomStep);
             } else {
-                this.zoomOutAtPoint(e.clientX, e.clientY);
+                this.zoomOutAtPoint(e.clientX, e.clientY, scrollZoomStep);
             }
         });
         
@@ -464,6 +594,35 @@ class ColoringGame {
                 }
             }
         });
+        
+        // Handle window resize and orientation changes (important for mobile)
+        window.addEventListener('resize', () => {
+            this.updateCanvasScaling();
+            // Redraw canvas to ensure proper display after resize
+            setTimeout(() => {
+                this.redrawCanvas(false, false);
+            }, 100);
+        });
+        
+        // Handle orientation change specifically for mobile devices
+        window.addEventListener('orientationchange', () => {
+            // Wait for orientation change to complete
+            setTimeout(() => {
+                this.updateCanvasScaling();
+                // Redraw canvas to ensure proper display after orientation change
+                this.redrawCanvas(false, false);
+            }, 300);
+        });
+        
+        // Handle viewport changes (important for mobile browsers)
+        if ('visualViewport' in window) {
+            window.visualViewport.addEventListener('resize', () => {
+                this.updateCanvasScaling();
+                setTimeout(() => {
+                    this.redrawCanvas(false, false);
+                }, 100);
+            });
+        }
     }
     
     switchTheme(theme) {
@@ -954,11 +1113,12 @@ class ColoringGame {
         }
     }
 
-    zoomInAtPoint(screenX, screenY) {
+    zoomInAtPoint(screenX, screenY, customStep = null) {
         console.log('zoomInAtPoint called at:', screenX, screenY, 'current zoom:', this.zoomLevel);
+        const step = customStep || this.zoomStep;
         if (this.zoomLevel < this.maxZoom) {
             const oldZoom = this.zoomLevel;
-            this.zoomLevel = Math.min(this.maxZoom, this.zoomLevel + this.zoomStep);
+            this.zoomLevel = Math.min(this.maxZoom, this.zoomLevel + step);
             
             // Adjust pan to keep the point under mouse cursor
             this.adjustPanForZoom(screenX, screenY, oldZoom, this.zoomLevel);
@@ -966,11 +1126,12 @@ class ColoringGame {
         }
     }
 
-    zoomOutAtPoint(screenX, screenY) {
+    zoomOutAtPoint(screenX, screenY, customStep = null) {
         console.log('zoomOutAtPoint called at:', screenX, screenY, 'current zoom:', this.zoomLevel);
+        const step = customStep || this.zoomStep;
         if (this.zoomLevel > this.minZoom) {
             const oldZoom = this.zoomLevel;
-            this.zoomLevel = Math.max(this.minZoom, this.zoomLevel - this.zoomStep);
+            this.zoomLevel = Math.max(this.minZoom, this.zoomLevel - step);
             
             // Adjust pan to keep the point under mouse cursor
             this.adjustPanForZoom(screenX, screenY, oldZoom, this.zoomLevel);
@@ -983,15 +1144,24 @@ class ColoringGame {
         
         const rect = this.canvas.getBoundingClientRect();
         
-        // Calculate the point in canvas coordinates before zoom using simplified transformation
-        const canvasX = (screenX - rect.left - this.panX) / oldZoom;
-        const canvasY = (screenY - rect.top - this.panY) / oldZoom;
+        // Fix: Proper coordinate transformation for zoom centering
+        // Get the position relative to the canvas element
+        const relativeX = screenX - rect.left;
+        const relativeY = screenY - rect.top;
         
-        // Calculate where this point should be after zoom
-        const newPanX = (canvasX * newZoom) - (screenX - rect.left);
-        const newPanY = (canvasY * newZoom) - (screenY - rect.top);
+        // Account for canvas CSS scaling (important for mobile)
+        const scaledX = relativeX / this.canvasScaleX;
+        const scaledY = relativeY / this.canvasScaleY;
         
-        console.log('Canvas coords:', canvasX, canvasY, 'new pan:', newPanX, newPanY);
+        // Get the point in canvas coordinates before zoom
+        const canvasX = (scaledX - this.panX) / oldZoom;
+        const canvasY = (scaledY - this.panY) / oldZoom;
+        
+        // Calculate where this point should be after zoom to keep it under the cursor
+        const newPanX = scaledX - (canvasX * newZoom);
+        const newPanY = scaledY - (canvasY * newZoom);
+        
+        console.log('adjustPanForZoom - relative:', relativeX, relativeY, 'scaled:', scaledX, scaledY, 'canvas:', canvasX, canvasY, 'new pan:', newPanX, newPanY);
         
         this.panX = newPanX;
         this.panY = newPanY;
@@ -1006,6 +1176,13 @@ class ColoringGame {
 
     updateZoom() {
         console.log('updateZoom called, zoom level:', this.zoomLevel, 'pan:', this.panX, this.panY);
+        
+        // Ensure zoom level is within bounds
+        this.zoomLevel = Math.max(this.minZoom, Math.min(this.maxZoom, this.zoomLevel));
+        
+        // Update canvas scaling information
+        this.updateCanvasScaling();
+        
         // Update zoom level display
         const zoomLevelElement = document.getElementById('zoomLevel');
         if (zoomLevelElement) {
@@ -1022,6 +1199,10 @@ class ColoringGame {
 
     redrawCanvas(saveState = false, redrawTheme = true) {
         console.log('redrawCanvas called, saveState:', saveState, 'redrawTheme:', redrawTheme, 'zoom:', this.zoomLevel, 'pan:', this.panX, this.panY);
+        
+        // Update canvas scaling information before redrawing
+        this.updateCanvasScaling();
+        
         // Clear canvas
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
@@ -1098,9 +1279,12 @@ class ColoringGame {
             // Only update if there's meaningful movement (prevents excessive redraws)
             if (Math.abs(deltaX) > 1 || Math.abs(deltaY) > 1) {
                 console.log('Panning - deltaX:', deltaX, 'deltaY:', deltaY, 'old pan:', this.panX, this.panY);
-                this.panX += deltaX;
-                this.panY += deltaY;
-                console.log('New pan position:', this.panX, this.panY);
+                
+                // Account for CSS scaling when panning (important for mobile)
+                this.panX += deltaX / this.canvasScaleX;
+                this.panY += deltaY / this.canvasScaleY;
+                
+                console.log('New pan position:', this.panX, this.panY, 'canvasScale:', this.canvasScaleX, this.canvasScaleY);
                 
                 this.lastPanX = eventCoords.clientX;
                 this.lastPanY = eventCoords.clientY;
@@ -1120,14 +1304,17 @@ class ColoringGame {
     screenToCanvas(screenX, screenY) {
         const rect = this.canvas.getBoundingClientRect();
         
-        // Fix: Proper coordinate transformation that accounts for zoom and pan
-        // First, get the position relative to the canvas element
+        // Get the position relative to the canvas element
         const relativeX = screenX - rect.left;
         const relativeY = screenY - rect.top;
         
+        // Account for canvas CSS scaling (important for mobile)
+        const scaledX = relativeX / this.canvasScaleX;
+        const scaledY = relativeY / this.canvasScaleY;
+        
         // Then, account for pan and zoom transformations
-        const x = (relativeX - this.panX) / this.zoomLevel;
-        const y = (relativeY - this.panY) / this.zoomLevel;
+        const x = (scaledX - this.panX) / this.zoomLevel;
+        const y = (scaledY - this.panY) / this.zoomLevel;
         
         console.log('screenToCanvas:', { 
             screenX, 
@@ -1136,6 +1323,10 @@ class ColoringGame {
             rectTop: rect.top, 
             relativeX, 
             relativeY,
+            canvasScaleX: this.canvasScaleX,
+            canvasScaleY: this.canvasScaleY,
+            scaledX,
+            scaledY,
             panX: this.panX, 
             panY: this.panY, 
             zoomLevel: this.zoomLevel, 
@@ -1150,12 +1341,11 @@ class ColoringGame {
     canvasToScreen(canvasX, canvasY) {
         const rect = this.canvas.getBoundingClientRect();
         
-        // Simple coordinate transformation that matches redrawCanvas
-        // Apply zoom first, then pan, then add canvas offset
-        const x = (canvasX * this.zoomLevel) + this.panX + rect.left;
-        const y = (canvasY * this.zoomLevel) + this.panY + rect.top;
+        // Apply zoom first, then pan, then scale to display size, then add canvas offset
+        const scaledX = (canvasX * this.zoomLevel + this.panX) * this.canvasScaleX + rect.left;
+        const scaledY = (canvasY * this.zoomLevel + this.panY) * this.canvasScaleY + rect.top;
         
-        return { x, y };
+        return { x: scaledX, y: scaledY };
     }
     
     floodFill(startX, startY, fillColor) {
