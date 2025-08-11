@@ -286,9 +286,8 @@ class ColoringGame {
             // Scale the drawing context so everything draws at the correct size
             this.ctx.scale(devicePixelRatio, devicePixelRatio);
             
-            // Set the CSS size back to the original size
-            this.canvas.style.width = cssWidth + 'px';
-            this.canvas.style.height = cssHeight + 'px';
+            // The canvas's CSS size is now controlled by the stylesheet.
+            // We no longer set it here, allowing for responsive behavior.
             
             console.log('Canvas optimized for high-DPI:', {
                 cssWidth,
