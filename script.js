@@ -162,20 +162,20 @@ class ColoringGame {
         this.ctx = this.canvas.getContext('2d');
         this.paint = new Paint(this.canvas, this);
         this.currentTheme = 'fairy';
-        
+
         // Color palette
         this.colorPalette = [
-            '#FF0000', '#FF8000', '#FFFF00', '#80FF00', '#00FF00', 
+            '#FF0000', '#FF8000', '#FFFF00', '#80FF00', '#00FF00',
             '#00FF80', '#00FFFF', '#0080FF', '#0000FF', '#8000FF',
             '#FF00FF', '#FF0080', '#800000', '#808000', '#008000',
             '#000080', '#800080', '#000000', '#808080', '#FFFFFF'
         ];
-        
+
         // Undo/Redo history
         this.history = [];
         this.historyIndex = -1;
         this.maxHistorySize = 50; // Limit history to prevent memory issues
-        
+
         // Zoom functionality
         this.zoomLevel = 1;
         this.minZoom = 0.1;
@@ -186,17 +186,17 @@ class ColoringGame {
         this.isPanning = false;
         this.lastPanX = 0;
         this.lastPanY = 0;
-        
+
         // Store loaded images
         this.loadedImages = {};
-        
+
         // Track current fairy selection
         this.currentFairySelection = 'fairy-1';
-        
+
         // Canvas scaling information for mobile
         this.canvasScaleX = 1;
         this.canvasScaleY = 1;
-        
+
         this.themes = {
             fairy: {
                 name: 'Fairy',
@@ -233,7 +233,7 @@ class ColoringGame {
                 description: 'Delicious cakes and sweet treats'
             }
         };
-        
+
         this.init();
     }
     
@@ -256,8 +256,8 @@ class ColoringGame {
         const displayDims = this.getCanvasDisplayDimensions();
         this.canvasScaleX = displayDims.scaleX;
         this.canvasScaleY = displayDims.scaleY;
-        console.log('Canvas scaling updated:', { 
-            scaleX: this.canvasScaleX, 
+        console.log('Canvas scaling updated:', {
+            scaleX: this.canvasScaleX,
             scaleY: this.canvasScaleY,
             displayWidth: displayDims.width,
             displayHeight: displayDims.height,
@@ -267,29 +267,28 @@ class ColoringGame {
             userAgent: navigator.userAgent
         });
     }
-    
+
     // Optimize canvas for high-DPI displays
     optimizeCanvasForHighDPI() {
         const devicePixelRatio = window.devicePixelRatio || 1;
         if (devicePixelRatio > 1) {
             console.log('High-DPI display detected, device pixel ratio:', devicePixelRatio);
-            
+
             // Get the canvas's CSS size
             const rect = this.canvas.getBoundingClientRect();
             const cssWidth = rect.width;
             const cssHeight = rect.height;
-            
+
             // Set the canvas size to account for device pixel ratio
             this.canvas.width = cssWidth * devicePixelRatio;
             this.canvas.height = cssHeight * devicePixelRatio;
-            
+
             // Scale the drawing context so everything draws at the correct size
             this.ctx.scale(devicePixelRatio, devicePixelRatio);
-            
-            // Set the CSS size back to the original size
-            this.canvas.style.width = cssWidth + 'px';
-            this.canvas.style.height = cssHeight + 'px';
-            
+
+            // The canvas's CSS size is now controlled by the stylesheet.
+            // We no longer set it here, allowing for responsive behavior.
+
             console.log('Canvas optimized for high-DPI:', {
                 cssWidth,
                 cssHeight,
@@ -299,7 +298,7 @@ class ColoringGame {
             });
         }
     }
-    
+
     getEventCoordinates(e) {
         let coords;
         if (e.touches && e.touches.length) {
@@ -319,23 +318,21 @@ class ColoringGame {
         this.updateUI();
         this.updateUndoRedoButtons(); // Initialize undo/redo button states
         
-        // Update canvas scaling information
-        this.updateCanvasScaling();
-        
-        // Optimize canvas for high-DPI displays
-        this.optimizeCanvasForHighDPI();
-        
-        // For fairy theme, automatically load the first fairy image
-        if (this.currentTheme === 'fairy') {
-            this.loadFairyImage(this.currentFairySelection);
-        }
-        
+        // Defer canvas setup to avoid race conditions with CSS layout
+        setTimeout(() => {
+            this.updateCanvasScaling();
+            this.optimizeCanvasForHighDPI();
+            if (this.currentTheme === 'fairy') {
+                this.loadFairyImage(this.currentFairySelection);
+            }
+        }, 100);
+
         // Fallback: hide loading overlay after 5 seconds if it's still visible
         setTimeout(() => {
             this.hideLoadingOverlay();
         }, 5000);
     }
-    
+
     setupEventListeners() {
         // Color palette event listeners are now set up in renderColorPalette()
 
@@ -352,7 +349,7 @@ class ColoringGame {
             e.preventDefault();
             this.addColorToPalette();
         }, { passive: false });
-        
+
         // Set initial custom color value to match first palette color
         document.getElementById('customColor').value = this.colorPalette[0];
 
@@ -427,7 +424,7 @@ class ColoringGame {
             e.preventDefault();
             this.printImage();
         }, { passive: false });
-        
+
         // Undo/Redo
         document.getElementById('undoBtn').addEventListener('click', (e) => {
             e.preventDefault();
@@ -445,7 +442,7 @@ class ColoringGame {
             e.preventDefault();
             this.redo();
         }, { passive: false });
-        
+
         // Zoom controls
         document.getElementById('zoomIn').addEventListener('click', (e) => {
             e.preventDefault();
@@ -471,7 +468,7 @@ class ColoringGame {
             e.preventDefault();
             this.resetZoom();
         }, { passive: false });
-        
+
         // Canvas events - consolidated to handle both drawing and panning
         this.canvas.addEventListener('mousedown', (e) => {
             // Handle panning first
@@ -481,7 +478,7 @@ class ColoringGame {
                 this.paint.startDrawing(e);
             }
         });
-        
+
         this.canvas.addEventListener('mousemove', (e) => {
             if (this.isPanning) {
                 this.pan(e);
@@ -490,7 +487,7 @@ class ColoringGame {
             }
             this.showPanCursor(e);
         });
-        
+
         this.canvas.addEventListener('mouseup', (e) => {
             if (this.isPanning) {
                 this.stopPanning();
@@ -498,7 +495,7 @@ class ColoringGame {
                 this.paint.stopDrawing();
             }
         });
-        
+
         this.canvas.addEventListener('mouseout', () => {
             if (this.isPanning) {
                 this.stopPanning();
@@ -506,7 +503,7 @@ class ColoringGame {
                 this.paint.stopDrawing();
             }
         });
-        
+
         this.canvas.addEventListener('mouseleave', () => {
             if (this.isPanning) {
                 this.stopPanning();
@@ -519,7 +516,7 @@ class ColoringGame {
         this.canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            
+
             // Handle single touch for drawing/filling
             if (e.touches.length === 1) {
                 this.paint.startDrawing(e);
@@ -529,7 +526,7 @@ class ColoringGame {
         this.canvas.addEventListener('touchmove', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            
+
             // Only handle drawing if it's a single touch and we're drawing
             if (e.touches.length === 1 && this.paint.isDrawing) {
                 this.paint.draw(e);
@@ -539,7 +536,7 @@ class ColoringGame {
         this.canvas.addEventListener('touchend', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            
+
             if (this.paint.isDrawing) {
                 this.paint.stopDrawing();
             }
@@ -548,31 +545,31 @@ class ColoringGame {
         this.canvas.addEventListener('touchcancel', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            
+
             if (this.paint.isDrawing) {
                 this.paint.stopDrawing();
             }
         }, { passive: false });
-        
+
         // Prevent context menu on long press (important for mobile)
         this.canvas.addEventListener('contextmenu', (e) => {
             e.preventDefault();
         });
-        
+
         // Mouse wheel zoom centered on mouse position
         this.canvas.addEventListener('wheel', (e) => {
             e.preventDefault();
             // Use smaller zoom steps for scroll wheel for smoother experience
             const scrollZoomStep = 0.05; // Much smaller step for scroll wheel
             const delta = e.deltaY > 0 ? -scrollZoomStep : scrollZoomStep;
-            
+
             if (delta > 0) {
                 this.zoomInAtPoint(e.clientX, e.clientY, scrollZoomStep);
             } else {
                 this.zoomOutAtPoint(e.clientX, e.clientY, scrollZoomStep);
             }
         });
-        
+
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
             if (e.ctrlKey || e.metaKey) { // Support both Ctrl (Windows/Linux) and Cmd (Mac)
@@ -594,7 +591,7 @@ class ColoringGame {
                 }
             }
         });
-        
+
         // Handle window resize and orientation changes (important for mobile)
         window.addEventListener('resize', () => {
             this.updateCanvasScaling();
@@ -603,7 +600,7 @@ class ColoringGame {
                 this.redrawCanvas(false, false);
             }, 100);
         });
-        
+
         // Handle orientation change specifically for mobile devices
         window.addEventListener('orientationchange', () => {
             // Wait for orientation change to complete
@@ -613,7 +610,7 @@ class ColoringGame {
                 this.redrawCanvas(false, false);
             }, 300);
         });
-        
+
         // Handle viewport changes (important for mobile browsers)
         if ('visualViewport' in window) {
             window.visualViewport.addEventListener('resize', () => {
@@ -629,7 +626,7 @@ class ColoringGame {
         if (this.themes[theme]) {
             this.currentTheme = theme;
             this.loadTheme(theme);
-            
+
             // Update active theme button
             document.querySelectorAll('.theme-btn').forEach(btn => {
                 btn.classList.remove('active');
@@ -637,27 +634,27 @@ class ColoringGame {
             document.querySelector(`[data-theme="${theme}"]`).classList.add('active');
         }
     }
-    
+
     loadTheme(theme) {
         console.log('loadTheme called with theme:', theme);
         if (this.themes[theme]) {
             this.currentTheme = theme;
-            
+
             // Update active theme button
             document.querySelectorAll('.theme-btn').forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.theme === theme);
             });
-            
+
             // Special handling for fairy theme - show selection UI
             if (theme === 'fairy') {
                 console.log('Showing fairy selection UI');
                 this.showFairySelection();
                 return; // Don't load image yet, wait for fairy selection
             }
-            
+
             // Clear history when switching themes to prevent old modifications from appearing
             this.clearHistory();
-            
+
             // Load image if not already loaded
             if (!this.loadedImages[theme]) {
                 console.log('Loading new image for theme:', theme);
@@ -675,11 +672,11 @@ class ColoringGame {
                 this.redrawCanvas(true, true);
                 this.hideLoadingOverlay(); // Hide loading overlay when using cached image
             }
-            
+
             console.log(`Theme loaded: ${theme}`);
         }
     }
-    
+
     showFairySelection() {
         // Create fairy selection UI
         const fairySelection = document.createElement('div');
@@ -700,19 +697,19 @@ class ColoringGame {
                 <button class="btn close-fairy-selection">Cancel</button>
             </div>
         `;
-        
+
         // Add to canvas overlay
         const overlay = document.querySelector('.canvas-overlay');
-        
+
         if (!overlay) {
             console.error('Canvas overlay not found!');
             return;
         }
-        
+
         overlay.innerHTML = '';
         overlay.appendChild(fairySelection);
         overlay.style.display = 'block';
-        
+
         // Add event listeners
         fairySelection.querySelectorAll('.fairy-option').forEach(option => {
             option.addEventListener('click', (e) => {
@@ -730,7 +727,7 @@ class ColoringGame {
                 overlay.style.display = 'none';
             }, { passive: false });
         });
-        
+
         fairySelection.querySelector('.close-fairy-selection').addEventListener('click', (e) => {
             e.preventDefault();
             overlay.style.display = 'none';
@@ -754,15 +751,15 @@ class ColoringGame {
             }
         }, { passive: false });
     }
-    
+
     loadFairyImage(fairyType) {
         const fairyTheme = this.themes.fairy;
         const fairyImage = fairyTheme.images[fairyType];
-        
+
         if (fairyImage) {
             // Clear history when selecting a fairy to prevent old modifications from appearing
             this.clearHistory();
-            
+
             // Load the specific fairy image
             if (!this.loadedImages[fairyType]) {
                 const img = new Image();
@@ -777,7 +774,7 @@ class ColoringGame {
                 this.redrawCanvas(true, true);
                 this.hideLoadingOverlay();
             }
-            
+
             console.log(`Fairy image loaded: ${fairyType}`);
         }
     }
@@ -793,7 +790,7 @@ class ColoringGame {
         console.log('drawThemeImage called with theme:', theme, 'saveState:', saveState);
         let img;
         let imgPath;
-        
+
         if (theme === 'fairy') {
             // For fairy theme, use the selected fairy image
             img = this.loadedImages[this.currentFairySelection];
@@ -809,27 +806,27 @@ class ColoringGame {
         if (img && img.complete) {
             const imgWidth = img.naturalWidth;
             const imgHeight = img.naturalHeight;
-            
+
             // Calculate scaling to fit canvas while preserving aspect ratio
             const canvasWidth = this.canvas.width;
             const canvasHeight = this.canvas.height;
-            
+
             const scaleX = canvasWidth / imgWidth;
             const scaleY = canvasHeight / imgHeight;
             const scale = Math.min(scaleX, scaleY);
-            
+
             const scaledWidth = imgWidth * scale;
             const scaledHeight = imgHeight * scale;
-            
+
             // Center the image
             const x = (canvasWidth - scaledWidth) / 2;
             const y = (canvasHeight - scaledHeight) / 2;
-            
+
             // Draw the image (zoom context is already applied by caller)
             this.ctx.drawImage(img, x, y, scaledWidth, scaledHeight);
-            
+
             console.log(`Image drawn: ${imgWidth}x${imgHeight} scaled to ${scaledWidth}x${scaledHeight} at (${x}, ${y})`);
-            
+
             // Save the initial state for undo/redo only when called directly
             if (saveState) {
                 console.log('Saving canvas state after drawing theme image');
@@ -839,7 +836,7 @@ class ColoringGame {
             console.log('Image not ready:', img, 'complete:', img ? img.complete : 'no image');
         }
     }
-    
+
     addColorToPalette() {
         const customColor = document.getElementById('customColor').value;
         if (!this.colorPalette.includes(customColor)) {
@@ -854,7 +851,7 @@ class ColoringGame {
         if (index > -1) {
             this.colorPalette.splice(index, 1);
             this.renderColorPalette();
-            
+
             // If the removed color was selected, select the first available color
             if (this.paint.currentColor === color && this.colorPalette.length > 0) {
                 this.paint.selectColor(this.colorPalette[0]);
@@ -871,11 +868,11 @@ class ColoringGame {
     renderColorPalette() {
         const paletteContainer = document.querySelector('.color-palette');
         if (!paletteContainer) return;
-        
+
         // Clear existing content but preserve the heading
         const heading = paletteContainer.querySelector('h3');
         paletteContainer.innerHTML = '';
-        
+
         // Restore the heading
         if (heading) {
             paletteContainer.appendChild(heading);
@@ -885,11 +882,11 @@ class ColoringGame {
             newHeading.textContent = 'Color Palette';
             paletteContainer.appendChild(newHeading);
         }
-        
+
         // Create the basic-colors container
         const basicColorsContainer = document.createElement('div');
         basicColorsContainer.className = 'basic-colors';
-        
+
         // Create color swatches for each color in the palette
         this.colorPalette.forEach((color, index) => {
             const swatch = document.createElement('div');
@@ -897,7 +894,7 @@ class ColoringGame {
             swatch.style.backgroundColor = color;
             swatch.dataset.color = color;
             swatch.title = color;
-            
+
             // Add remove button for non-default colors
             if (index >= 20) { // First 20 are default colors
                 const removeBtn = document.createElement('button');
@@ -910,51 +907,51 @@ class ColoringGame {
                 });
                 swatch.appendChild(removeBtn);
             }
-            
+
             // Add both click and touch events for better mobile support
             swatch.addEventListener('click', (e) => {
                 e.preventDefault();
                 console.log('Color swatch clicked:', color);
                 this.paint.selectColor(color);
             });
-            
+
             // Touch events for mobile
             swatch.addEventListener('touchstart', (e) => {
                 e.preventDefault();
                 console.log('Color swatch touched:', color);
                 this.paint.selectColor(color);
             }, { passive: false });
-            
+
             // Add pointer events for better cross-device support
             swatch.addEventListener('pointerdown', (e) => {
                 e.preventDefault();
                 console.log('Color swatch pointer down:', color);
                 this.paint.selectColor(color);
             });
-            
+
             basicColorsContainer.appendChild(swatch);
         });
-        
+
         // Add the basic-colors container to the palette
         paletteContainer.appendChild(basicColorsContainer);
-        
+
         // Update selected color display
         this.updateSelectedColorDisplay();
     }
-    
+
     updateSelectedColorDisplay() {
         // Update the selected color indicator
         const selectedSwatch = document.querySelector('.color-swatch.selected');
         if (selectedSwatch) {
             selectedSwatch.classList.remove('selected');
         }
-        
+
         const newSelectedSwatch = document.querySelector(`[data-color="${this.paint.currentColor}"]`);
         if (newSelectedSwatch) {
             newSelectedSwatch.classList.add('selected');
         }
     }
-    
+
     saveCanvasState() {
         // Save current canvas state to history
         // We need to get the image data from an untransformed canvas context
@@ -962,13 +959,13 @@ class ColoringGame {
         tempCanvas.width = this.canvas.width;
         tempCanvas.height = this.canvas.height;
         const tempCtx = tempCanvas.getContext('2d');
-        
+
         // Draw the current canvas state onto the temp canvas
         tempCtx.drawImage(this.canvas, 0, 0);
-        
+
         // Get the image data from the temp canvas (untransformed)
         const imageData = tempCtx.getImageData(0, 0, this.canvas.width, this.canvas.height);
-        
+
         // Create a state object that includes canvas data and theme info
         const state = {
             imageData: imageData,
@@ -978,22 +975,22 @@ class ColoringGame {
             panX: this.panX,
             panY: this.panY
         };
-        
+
         // Remove any future history if we're not at the end
         if (this.historyIndex < this.history.length - 1) {
             this.history = this.history.slice(0, this.historyIndex + 1);
         }
-        
+
         // Add new state to history
         this.history.push(state);
         this.historyIndex++;
-        
+
         // Limit history size
         if (this.history.length > this.maxHistorySize) {
             this.history.shift();
             this.historyIndex--;
         }
-        
+
         this.updateUndoRedoButtons();
         console.log(`Canvas state saved. History: ${this.history.length} states, Index: ${this.historyIndex}`);
     }
@@ -1003,7 +1000,7 @@ class ColoringGame {
             this.historyIndex--;
             const state = this.history[this.historyIndex];
             this.restoreCanvasState(state);
-            
+
             // Restore theme and fairy selection if they changed
             if (state.theme !== this.currentTheme) {
                 this.currentTheme = state.theme;
@@ -1012,11 +1009,11 @@ class ColoringGame {
                     btn.classList.toggle('active', btn.dataset.theme === state.theme);
                 });
             }
-            
+
             if (state.fairySelection !== this.currentFairySelection) {
                 this.currentFairySelection = state.fairySelection;
             }
-            
+
             this.updateUndoRedoButtons();
             console.log(`Undo performed. History index: ${this.historyIndex}`);
         }
@@ -1027,7 +1024,7 @@ class ColoringGame {
             this.historyIndex++;
             const state = this.history[this.historyIndex];
             this.restoreCanvasState(state);
-            
+
             // Restore theme and fairy selection if they changed
             if (state.theme !== this.currentTheme) {
                 this.currentTheme = state.theme;
@@ -1036,50 +1033,50 @@ class ColoringGame {
                     btn.classList.toggle('active', btn.dataset.theme === state.theme);
                 });
             }
-            
+
             if (state.fairySelection !== this.currentFairySelection) {
                 this.currentFairySelection = state.fairySelection;
             }
-            
+
             this.updateUndoRedoButtons();
             console.log(`Redo performed. History index: ${this.historyIndex}`);
         }
     }
-    
+
     restoreCanvasState(state) {
         // Store the current zoom and pan settings
         const currentZoom = this.zoomLevel;
         const currentPanX = this.panX;
         const currentPanY = this.panY;
-        
+
         // Temporarily reset zoom and pan to restore the state
         this.zoomLevel = 1;
         this.panX = 0;
         this.panY = 0;
-        
+
         // Restore the image data without transformations
         this.ctx.putImageData(state.imageData, 0, 0);
-        
+
         // Restore the zoom and pan settings
         this.zoomLevel = currentZoom;
         this.panX = currentPanX;
         this.panY = currentPanY;
-        
+
         // Redraw the canvas with the restored state and current transformations
         this.redrawCanvas(false, false);
-        
+
         console.log(`Canvas state restored. Zoom: ${this.zoomLevel}, Pan: (${this.panX}, ${this.panY})`);
     }
-    
+
     updateUndoRedoButtons() {
         const undoBtn = document.getElementById('undoBtn');
         const redoBtn = document.getElementById('redoBtn');
-        
+
         if (undoBtn) {
             undoBtn.disabled = this.historyIndex <= 0;
             undoBtn.classList.toggle('disabled', this.historyIndex <= 0);
         }
-        
+
         if (redoBtn) {
             redoBtn.disabled = this.historyIndex >= this.history.length - 1;
             redoBtn.classList.toggle('disabled', this.historyIndex >= this.history.length - 1);
@@ -1119,7 +1116,7 @@ class ColoringGame {
         if (this.zoomLevel < this.maxZoom) {
             const oldZoom = this.zoomLevel;
             this.zoomLevel = Math.min(this.maxZoom, this.zoomLevel + step);
-            
+
             // Adjust pan to keep the point under mouse cursor
             this.adjustPanForZoom(screenX, screenY, oldZoom, this.zoomLevel);
             this.updateZoom();
@@ -1132,7 +1129,7 @@ class ColoringGame {
         if (this.zoomLevel > this.minZoom) {
             const oldZoom = this.zoomLevel;
             this.zoomLevel = Math.max(this.minZoom, this.zoomLevel - step);
-            
+
             // Adjust pan to keep the point under mouse cursor
             this.adjustPanForZoom(screenX, screenY, oldZoom, this.zoomLevel);
             this.updateZoom();
@@ -1141,28 +1138,28 @@ class ColoringGame {
 
     adjustPanForZoom(screenX, screenY, oldZoom, newZoom) {
         console.log('adjustPanForZoom called - screen:', screenX, screenY, 'oldZoom:', oldZoom, 'newZoom:', newZoom, 'old pan:', this.panX, this.panY);
-        
+
         const rect = this.canvas.getBoundingClientRect();
-        
+
         // Fix: Proper coordinate transformation for zoom centering
         // Get the position relative to the canvas element
         const relativeX = screenX - rect.left;
         const relativeY = screenY - rect.top;
-        
+
         // Account for canvas CSS scaling (important for mobile)
         const scaledX = relativeX / this.canvasScaleX;
         const scaledY = relativeY / this.canvasScaleY;
-        
+
         // Get the point in canvas coordinates before zoom
         const canvasX = (scaledX - this.panX) / oldZoom;
         const canvasY = (scaledY - this.panY) / oldZoom;
-        
+
         // Calculate where this point should be after zoom to keep it under the cursor
         const newPanX = scaledX - (canvasX * newZoom);
         const newPanY = scaledY - (canvasY * newZoom);
-        
+
         console.log('adjustPanForZoom - relative:', relativeX, relativeY, 'scaled:', scaledX, scaledY, 'canvas:', canvasX, canvasY, 'new pan:', newPanX, newPanY);
-        
+
         this.panX = newPanX;
         this.panY = newPanY;
     }
@@ -1176,13 +1173,13 @@ class ColoringGame {
 
     updateZoom() {
         console.log('updateZoom called, zoom level:', this.zoomLevel, 'pan:', this.panX, this.panY);
-        
+
         // Ensure zoom level is within bounds
         this.zoomLevel = Math.max(this.minZoom, Math.min(this.maxZoom, this.zoomLevel));
-        
+
         // Update canvas scaling information
         this.updateCanvasScaling();
-        
+
         // Update zoom level display
         const zoomLevelElement = document.getElementById('zoomLevel');
         if (zoomLevelElement) {
@@ -1199,16 +1196,16 @@ class ColoringGame {
 
     redrawCanvas(saveState = false, redrawTheme = true) {
         console.log('redrawCanvas called, saveState:', saveState, 'redrawTheme:', redrawTheme, 'zoom:', this.zoomLevel, 'pan:', this.panX, this.panY);
-        
+
         // Update canvas scaling information before redrawing
         this.updateCanvasScaling();
-        
+
         // Clear canvas
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        
+
         // Apply simple zoom and pan transformations
         this.ctx.save();
-        
+
         // Apply transformations in simple order: pan first, then zoom
         this.ctx.translate(this.panX, this.panY);
         this.ctx.scale(this.zoomLevel, this.zoomLevel);
@@ -1218,7 +1215,7 @@ class ColoringGame {
             console.log('Redrawing theme image');
             this.drawThemeImage(this.currentTheme, false);
         }
-        
+
         // Redraw any user drawings from history
         if (this.history.length > 0 && this.historyIndex >= 0) {
             const historyState = this.history[this.historyIndex];
@@ -1229,10 +1226,10 @@ class ColoringGame {
                 tempCanvas.width = this.canvas.width;
                 tempCanvas.height = this.canvas.height;
                 const tempCtx = tempCanvas.getContext('2d');
-                
+
                 // Draw the history image data onto the temp canvas
                 tempCtx.putImageData(historyState.imageData, 0, 0);
-                
+
                 // Draw the temp canvas onto the main canvas with transformations
                 this.ctx.drawImage(tempCanvas, 0, 0);
             } else {
@@ -1241,7 +1238,7 @@ class ColoringGame {
         } else {
             console.log('No history to redraw, length:', this.history.length, 'index:', this.historyIndex);
         }
-        
+
         this.ctx.restore();
         
         // Save state only if requested
@@ -1275,20 +1272,20 @@ class ColoringGame {
             const eventCoords = this.getEventCoordinates(e);
             const deltaX = eventCoords.clientX - this.lastPanX;
             const deltaY = eventCoords.clientY - this.lastPanY;
-            
+
             // Only update if there's meaningful movement (prevents excessive redraws)
             if (Math.abs(deltaX) > 1 || Math.abs(deltaY) > 1) {
                 console.log('Panning - deltaX:', deltaX, 'deltaY:', deltaY, 'old pan:', this.panX, this.panY);
-                
+
                 // Account for CSS scaling when panning (important for mobile)
                 this.panX += deltaX / this.canvasScaleX;
                 this.panY += deltaY / this.canvasScaleY;
-                
+
                 console.log('New pan position:', this.panX, this.panY, 'canvasScale:', this.canvasScaleX, this.canvasScaleY);
-                
+
                 this.lastPanX = eventCoords.clientX;
                 this.lastPanY = eventCoords.clientY;
-                
+
                 // Update zoom display and redraw
                 this.updateZoom();
             }
@@ -1303,166 +1300,166 @@ class ColoringGame {
     // Convert screen coordinates to canvas coordinates
     screenToCanvas(screenX, screenY) {
         const rect = this.canvas.getBoundingClientRect();
-        
+
         // Get the position relative to the canvas element
         const relativeX = screenX - rect.left;
         const relativeY = screenY - rect.top;
-        
+
         // Account for canvas CSS scaling (important for mobile)
         const scaledX = relativeX / this.canvasScaleX;
         const scaledY = relativeY / this.canvasScaleY;
-        
+
         // Then, account for pan and zoom transformations
         const x = (scaledX - this.panX) / this.zoomLevel;
         const y = (scaledY - this.panY) / this.zoomLevel;
-        
-        console.log('screenToCanvas:', { 
-            screenX, 
-            screenY, 
-            rectLeft: rect.left, 
-            rectTop: rect.top, 
-            relativeX, 
+
+        console.log('screenToCanvas:', {
+            screenX,
+            screenY,
+            rectLeft: rect.left,
+            rectTop: rect.top,
+            relativeX,
             relativeY,
             canvasScaleX: this.canvasScaleX,
             canvasScaleY: this.canvasScaleY,
             scaledX,
             scaledY,
-            panX: this.panX, 
-            panY: this.panY, 
-            zoomLevel: this.zoomLevel, 
-            resultX: x, 
-            resultY: y 
+            panX: this.panX,
+            panY: this.panY,
+            zoomLevel: this.zoomLevel,
+            resultX: x,
+            resultY: y
         });
-        
+
         return { x, y };
     }
 
     // Convert canvas coordinates to screen coordinates
     canvasToScreen(canvasX, canvasY) {
         const rect = this.canvas.getBoundingClientRect();
-        
+
         // Apply zoom first, then pan, then scale to display size, then add canvas offset
         const scaledX = (canvasX * this.zoomLevel + this.panX) * this.canvasScaleX + rect.left;
         const scaledY = (canvasY * this.zoomLevel + this.panY) * this.canvasScaleY + rect.top;
-        
+
         return { x: scaledX, y: scaledY };
     }
-    
+
     floodFill(startX, startY, fillColor) {
         console.log('Flood fill called with:', { startX, startY, fillColor });
         console.log('Current paint color:', this.paint.currentColor);
-        
+
         // startX and startY are already canvas coordinates from screenToCanvas
         const actualX = Math.floor(startX);
         const actualY = Math.floor(startY);
-        
+
         console.log('Using canvas coordinates:', { actualX, actualY });
         console.log('Canvas dimensions:', { width: this.canvas.width, height: this.canvas.height });
-        
+
         // Check bounds
         if (actualX < 0 || actualX >= this.canvas.width || actualY < 0 || actualY >= this.canvas.height) {
             console.error('Coordinates out of bounds:', { actualX, actualY, width: this.canvas.width, height: this.canvas.height });
             return;
         }
-        
+
         // Create a temporary canvas to work with untransformed coordinates
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = this.canvas.width;
         tempCanvas.height = this.canvas.height;
         const tempCtx = tempCanvas.getContext('2d');
-        
+
         // Draw the current canvas state onto the temp canvas
         // This gives us the untransformed image data to work with
         tempCtx.drawImage(this.canvas, 0, 0);
-        
+
         // Get the image data from the temp canvas (untransformed)
         const imageData = tempCtx.getImageData(0, 0, this.canvas.width, this.canvas.height);
         const pixels = imageData.data;
-        
+
         // Get the color at the starting point
         const startPos = (actualY * this.canvas.width + actualX) * 4;
         const startR = pixels[startPos];
         const startG = pixels[startPos + 1];
         const startB = pixels[startPos + 2];
         const startA = pixels[startPos + 3];
-        
+
         console.log('Starting pixel color:', { startR, startG, startB, startA });
         console.log('Starting pixel position in array:', startPos);
-        
+
         // Parse the fill color
         const fillR = parseInt(fillColor.slice(1, 3), 16);
         const fillG = parseInt(fillColor.slice(3, 5), 16);
         const fillB = parseInt(fillColor.slice(5, 7), 16);
-        
+
         console.log('Fill color:', { fillR, fillG, fillB });
-        
+
         // Don't fill if we're trying to fill with the same color
         if (startR === fillR && startG === fillG && startB === fillB) {
             console.log('Same color, no fill needed');
             return; // Already the same color
         }
-        
+
         // Define color tolerance for more robust filling
         // This allows filling to get very close to lines without leaving gaps
         const tolerance = 35; // Adjust this value if needed
-        
+
         // Helper function to check if colors are similar enough to fill
         const isSimilarColor = (r1, g1, b1, a1, r2, g2, b2, a2) => {
             const colorDiff = Math.sqrt(
-                Math.pow(r1 - r2, 2) + 
-                Math.pow(g1 - g2, 2) + 
+                Math.pow(r1 - r2, 2) +
+                Math.pow(g1 - g2, 2) +
                 Math.pow(b1 - b2, 2)
             );
             return colorDiff <= tolerance;
         };
-        
+
         // Use a more efficient flood fill algorithm with a queue
         const queue = [[actualX, actualY]];
         const width = this.canvas.width;
         const height = this.canvas.height;
         const visited = new Set(); // Track visited pixels to avoid infinite loops
-        
+
         let pixelsFilled = 0;
-        
+
         while (queue.length > 0) {
             const [x, y] = queue.shift();
             const key = `${x},${y}`;
-            
+
             // Check bounds and if already visited
             if (x < 0 || x >= width || y < 0 || y >= height || visited.has(key)) continue;
             
             visited.add(key);
             const pos = (y * width + x) * 4;
-            
+
             // Check if this pixel matches the target color (with tolerance)
-            if (!isSimilarColor(pixels[pos], pixels[pos + 1], pixels[pos + 2], pixels[pos + 3], 
+            if (!isSimilarColor(pixels[pos], pixels[pos + 1], pixels[pos + 2], pixels[pos + 3],
                                startR, startG, startB, startA)) {
                 continue;
             }
-            
+
             // Fill this pixel
             pixels[pos] = fillR;
             pixels[pos + 1] = fillG;
             pixels[pos + 2] = fillB;
             pixels[pos + 3] = 255; // Full opacity
-            
+
             pixelsFilled++;
-            
+
             // Add neighboring pixels to the queue (8-directional for better coverage)
             queue.push(
                 [x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1],
                 [x + 1, y + 1], [x + 1, y - 1], [x - 1, y + 1], [x - 1, y - 1]
             );
         }
-        
+
         console.log('Pixels filled:', pixelsFilled);
-        
+
         if (pixelsFilled > 0) {
             console.log('Creating new history state with filled image data');
-            
+
             // Put the modified image data back onto the temp canvas
             tempCtx.putImageData(imageData, 0, 0);
-            
+
             // Create a new history state with the filled image data
             const newState = {
                 imageData: tempCtx.getImageData(0, 0, this.canvas.width, this.canvas.height),
@@ -1472,46 +1469,46 @@ class ColoringGame {
                 panX: this.panX,
                 panY: this.panY
             };
-            
+
             // Add this state to history
             this.historyIndex++;
             this.history.splice(this.historyIndex, this.history.length); // Remove any future states
             this.history.push(newState);
-            
+
             // Limit history size
             if (this.history.length > this.maxHistorySize) {
                 this.history.shift();
                 this.historyIndex--;
             }
-            
+
             console.log('History updated, current index:', this.historyIndex, 'history length:', this.history.length);
-            
+
             // Redraw the canvas with the new state, but ensure theme is redrawn
             this.redrawCanvas(false, true);
-            
+
             // Update undo/redo buttons
             this.updateUndoRedoButtons();
         } else {
             console.log('No pixels were filled');
         }
     }
-    
+
     clearCanvas() {
         // Clear the canvas and redraw the theme image with proper zoom/pan context
         this.clearHistory();
         this.redrawCanvas(true, true);
     }
-    
+
     saveImage() {
         // Create a temporary canvas to capture the current view
         const tempCanvas = document.createElement('canvas');
         const tempCtx = tempCanvas.getContext('2d');
         tempCanvas.width = this.canvas.width;
         tempCanvas.height = this.canvas.height;
-        
+
         // Draw the current canvas state
         tempCtx.drawImage(this.canvas, 0, 0);
-        
+
         // Create download link
         const link = document.createElement('a');
         link.download = `coloring-${this.currentTheme}-${Date.now()}.png`;
@@ -1541,24 +1538,24 @@ class ColoringGame {
         printWindow.document.close();
         printWindow.print();
     }
-    
+
     updateUI() {
         // Update brush size display
         const brushSizeInput = document.getElementById('brushSize');
         if (brushSizeInput) {
             brushSizeInput.value = this.paint.brushSize;
         }
-        
+
         // Update selected tool
         document.querySelectorAll('.tool-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.tool === this.paint.currentTool);
         });
-        
+
         // Update selected theme
         document.querySelectorAll('.theme-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.theme === this.currentTheme);
         });
-        
+
         // Update selected color
         this.updateSelectedColorDisplay();
     }
