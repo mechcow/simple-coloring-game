@@ -1,0 +1,28 @@
+{
+  "name": "simple-coloring-game-tests",
+  "version": "1.0.0",
+  "description": "Playwright test suite for the simple coloring game",
+  "main": "index.js",
+  "scripts": {
+    "test": "playwright test",
+    "test:web": "playwright test --grep @web",
+    "test:mobile": "playwright test --grep @mobile",
+    "test:android": "playwright test --grep @android",
+    "test:headful": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "test:ui": "playwright test --ui",
+    "install-browsers": "playwright install",
+    "show-report": "playwright show-report"
+  },
+  "keywords": ["playwright", "testing", "coloring-game", "canvas", "mobile"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@playwright/test": "^1.40.0",
+    "@types/node": "^20.0.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
+

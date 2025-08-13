@@ -197,6 +197,9 @@ class ColoringGame {
         this.canvasScaleX = 1;
         this.canvasScaleY = 1;
 
+        // Initialization flag for tests
+        this.isInitialized = false;
+
         this.themes = {
             fairy: {
                 name: 'Fairy',
@@ -331,6 +334,9 @@ class ColoringGame {
         setTimeout(() => {
             this.hideLoadingOverlay();
         }, 5000);
+
+        // Mark as initialized for tests
+        this.isInitialized = true;
     }
 
     setupEventListeners() {
@@ -559,15 +565,30 @@ class ColoringGame {
         // Mouse wheel zoom centered on mouse position
         this.canvas.addEventListener('wheel', (e) => {
             e.preventDefault();
+            console.log('Wheel event triggered:', { 
+                clientX: e.clientX, 
+                clientY: e.clientY, 
+                deltaY: e.deltaY,
+                target: e.target,
+                currentTarget: e.currentTarget,
+                currentZoom: this.zoomLevel
+            });
+            
             // Use smaller zoom steps for scroll wheel for smoother experience
             const scrollZoomStep = 0.05; // Much smaller step for scroll wheel
             const delta = e.deltaY > 0 ? -scrollZoomStep : scrollZoomStep;
 
+            console.log('Calculated delta:', delta, 'scrollZoomStep:', scrollZoomStep, 'deltaY:', e.deltaY);
+
             if (delta > 0) {
+                console.log('Zooming in at point:', e.clientX, e.clientY);
                 this.zoomInAtPoint(e.clientX, e.clientY, scrollZoomStep);
             } else {
+                console.log('Zooming out at point:', e.clientX, e.clientY);
                 this.zoomOutAtPoint(e.clientX, e.clientY, scrollZoomStep);
             }
+            
+            console.log('Zoom level after wheel event:', this.zoomLevel);
         });
 
         // Keyboard shortcuts
@@ -1113,13 +1134,18 @@ class ColoringGame {
     zoomInAtPoint(screenX, screenY, customStep = null) {
         console.log('zoomInAtPoint called at:', screenX, screenY, 'current zoom:', this.zoomLevel);
         const step = customStep || this.zoomStep;
+        console.log('zoomInAtPoint - step:', step, 'minZoom:', this.minZoom, 'maxZoom:', this.maxZoom);
+        
         if (this.zoomLevel < this.maxZoom) {
             const oldZoom = this.zoomLevel;
             this.zoomLevel = Math.min(this.maxZoom, this.zoomLevel + step);
+            console.log('zoomInAtPoint - oldZoom:', oldZoom, 'new zoomLevel:', this.zoomLevel);
 
             // Adjust pan to keep the point under mouse cursor
             this.adjustPanForZoom(screenX, screenY, oldZoom, this.zoomLevel);
             this.updateZoom();
+        } else {
+            console.log('zoomInAtPoint - zoom level already at max:', this.zoomLevel);
         }
     }
 
@@ -1175,7 +1201,9 @@ class ColoringGame {
         console.log('updateZoom called, zoom level:', this.zoomLevel, 'pan:', this.panX, this.panY);
 
         // Ensure zoom level is within bounds
+        const oldZoom = this.zoomLevel;
         this.zoomLevel = Math.max(this.minZoom, Math.min(this.maxZoom, this.zoomLevel));
+        console.log('updateZoom - oldZoom:', oldZoom, 'new zoomLevel after bounds check:', this.zoomLevel);
 
         // Update canvas scaling information
         this.updateCanvasScaling();
@@ -1563,5 +1591,5 @@ class ColoringGame {
 
 // Initialize the game when the page loads
 document.addEventListener('DOMContentLoaded', () => {
-    new ColoringGame();
+    window.game = new ColoringGame();
 }); 
